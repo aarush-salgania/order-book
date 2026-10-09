@@ -75,9 +75,14 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
         <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
           Manual Order Entry
         </h2>
-        <span className="text-[10px] text-cyan-400 bg-cyan-950/40 border border-cyan-800/60 px-1.5 py-0.5 rounded font-mono">
-          LIMIT
-        </span>
+        <div className="flex items-center space-x-1">
+          <span className="text-[10px] text-cyan-400 bg-cyan-950/40 border border-cyan-800/60 px-1.5 py-0.5 rounded font-mono">
+            POST /api/order
+          </span>
+          <span className="text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 px-1.5 py-0.5 rounded font-mono">
+            LIMIT
+          </span>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-3">

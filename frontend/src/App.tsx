@@ -23,6 +23,10 @@ export function App() {
     snapshot,
     recentTrades,
     config,
+    connectionStatus,
+    mode,
+    setMode,
+    reconnect,
     updateConfig,
     sendOrder,
     resetBook,
@@ -31,7 +35,13 @@ export function App() {
   return (
     <div className="min-h-screen bg-terminal-bg text-terminal-text flex flex-col font-mono selection:bg-cyan-900 selection:text-white">
       {/* 1. Header with market stats & C++ backend status */}
-      <Header snapshot={snapshot} config={config} />
+      <Header
+        snapshot={snapshot}
+        config={config}
+        connectionStatus={connectionStatus}
+        mode={mode}
+        onReconnect={reconnect}
+      />
 
       {/* 2. Main 3-Column Terminal Layout */}
       <main className="flex-1 p-3 md:p-4 max-w-[1920px] w-full mx-auto">
@@ -40,6 +50,10 @@ export function App() {
           <div className="lg:col-span-3 flex flex-col space-y-4">
             <ControlPanel
               config={config}
+              connectionStatus={connectionStatus}
+              mode={mode}
+              onSetMode={setMode}
+              onReconnect={reconnect}
               onUpdateConfig={updateConfig}
               onResetBook={resetBook}
             />
@@ -64,12 +78,30 @@ export function App() {
       {/* Terminal Status Bar Footer */}
       <footer className="bg-terminal-panel/80 border-t border-terminal-border px-4 py-1.5 flex items-center justify-between text-[11px] text-terminal-muted tabular-nums">
         <div className="flex items-center space-x-4">
-          <span className="flex items-center space-x-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-            <span>DATA-PROVIDER: MOCK_FEED_V1</span>
+          <span className="flex items-center space-x-1.5">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                mode === 'backend'
+                  ? connectionStatus === 'connected'
+                    ? 'bg-emerald-400 animate-pulse'
+                    : connectionStatus === 'connecting'
+                    ? 'bg-amber-400'
+                    : 'bg-rose-400'
+                  : 'bg-cyan-400'
+              }`}
+            ></span>
+            <span>
+              {mode === 'backend'
+                ? `DATA-PROVIDER: LIVE_WS (ws://localhost:4001)`
+                : `DATA-PROVIDER: MOCK_FEED_V1`}
+            </span>
           </span>
           <span className="hidden sm:inline text-slate-500">|</span>
-          <span className="hidden sm:inline">ENGINE: LOCAL_SIM</span>
+          <span className="hidden sm:inline">
+            {mode === 'backend'
+              ? `ENGINE: CPP_BACKEND (HTTP :4000 / WS :4001)`
+              : `ENGINE: LOCAL_SIM`}
+          </span>
         </div>
 
         <div className="flex items-center space-x-3">

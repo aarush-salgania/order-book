@@ -56,15 +56,20 @@ export interface OrderBookStats {
 export type OrderBookListener = (snapshot: OrderBookSnapshot) => void;
 export type TradeListener = (trade: Trade) => void;
 export type ConfigListener = (config: SimulationConfig) => void;
+export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
+export type ConnectionListener = (status: ConnectionStatus) => void;
 
 /**
  * Service interface decoupling the UI from data generation.
- * This contract enables 1:1 swapping between MockDataService and the future C++ WebSocket client.
+ * This contract enables 1:1 swapping between MockDataService and the C++ WebSocket client.
  */
 export interface IOrderBookService {
   subscribeBook(listener: OrderBookListener): () => void;
   subscribeTrades(listener: TradeListener): () => void;
   subscribeConfig(listener: ConfigListener): () => void;
+  subscribeStatus?: (listener: ConnectionListener) => () => void;
+  getStatus?: () => ConnectionStatus;
+  reconnect?: () => void;
   updateConfig(config: Partial<SimulationConfig>): void;
   sendOrder(order: ManualOrderPayload): Promise<{ success: boolean; message: string }>;
   resetBook(): void;
@@ -72,3 +77,4 @@ export interface IOrderBookService {
   getSnapshot(): OrderBookSnapshot;
   getRecentTrades(): Trade[];
 }
+

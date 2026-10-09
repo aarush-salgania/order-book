@@ -1,15 +1,23 @@
 import React from 'react';
-import { Play, Pause, RotateCcw, Bot, Gauge, Zap, Sparkles } from 'lucide-react';
-import type { SimulationConfig } from '../types/market';
+import { Play, Pause, RotateCcw, Bot, Gauge, Zap, Sparkles, Server, RefreshCw } from 'lucide-react';
+import type { SimulationConfig, ConnectionStatus } from '../types/market';
 
 interface ControlPanelProps {
   config: SimulationConfig;
+  connectionStatus?: ConnectionStatus;
+  mode?: 'backend' | 'mock';
+  onSetMode?: (mode: 'backend' | 'mock') => void;
+  onReconnect?: () => void;
   onUpdateConfig: (cfg: Partial<SimulationConfig>) => void;
   onResetBook: () => void;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
   config,
+  connectionStatus = 'connected',
+  mode = 'backend',
+  onSetMode,
+  onReconnect,
   onUpdateConfig,
   onResetBook,
 }) => {
@@ -59,6 +67,86 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           )}
         </button>
       </div>
+
+      {/* Backend Engine Integration Card */}
+      <div className="bg-terminal-card border border-terminal-border/80 rounded-md p-2.5 space-y-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="flex items-center space-x-1.5 font-bold text-slate-300">
+            <Server className="w-3.5 h-3.5 text-cyan-400" />
+            <span>ENGINE GATEWAY</span>
+          </span>
+
+          {mode === 'backend' && onReconnect && (
+            <button
+              onClick={onReconnect}
+              title="Reconnect to Backend WebSocket (ws://localhost:4001)"
+              className="text-[10px] text-slate-400 hover:text-cyan-400 flex items-center space-x-1 bg-terminal-panel px-1.5 py-0.5 rounded border border-terminal-border transition-colors"
+            >
+              <RefreshCw className="w-2.5 h-2.5" />
+              <span>Reconnect</span>
+            </button>
+          )}
+        </div>
+
+        {/* Mode Switcher */}
+        {onSetMode && (
+          <div className="grid grid-cols-2 gap-1.5 bg-terminal-panel p-1 rounded border border-terminal-border text-[11px] font-semibold">
+            <button
+              onClick={() => onSetMode('backend')}
+              className={`py-1 rounded text-center transition-all ${
+                mode === 'backend'
+                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              C++ Backend
+            </button>
+            <button
+              onClick={() => onSetMode('mock')}
+              className={`py-1 rounded text-center transition-all ${
+                mode === 'mock'
+                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Mock Sim
+            </button>
+          </div>
+        )}
+
+        {/* Gateway Endpoints & Live Status */}
+        {mode === 'backend' ? (
+          <div className="text-[10px] space-y-1 text-terminal-muted tabular-nums">
+            <div className="flex justify-between items-center">
+              <span>HTTP POST:</span>
+              <span className="text-slate-300 font-mono">http://localhost:4000/api/order</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span>WS FEED:</span>
+              <span className="text-slate-300 font-mono">ws://localhost:4001</span>
+            </div>
+            <div className="flex justify-between items-center pt-0.5 border-t border-terminal-border/40">
+              <span>STATUS:</span>
+              <span
+                className={`font-bold uppercase ${
+                  connectionStatus === 'connected'
+                    ? 'text-emerald-400'
+                    : connectionStatus === 'connecting'
+                    ? 'text-amber-400'
+                    : 'text-rose-400'
+                }`}
+              >
+                {connectionStatus}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="text-[10px] text-terminal-muted">
+            Running standalone mock data provider (in-memory simulator).
+          </div>
+        )}
+      </div>
+
 
       {/* Control 1: Active Bots Slider */}
       <div className="space-y-1.5">

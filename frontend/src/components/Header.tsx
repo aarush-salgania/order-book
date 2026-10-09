@@ -5,9 +5,18 @@ import type { OrderBookSnapshot, SimulationConfig } from '../types/market';
 interface HeaderProps {
   snapshot: OrderBookSnapshot;
   config: SimulationConfig;
+  connectionStatus?: ConnectionStatus;
+  mode?: 'backend' | 'mock';
+  onReconnect?: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ snapshot, config }) => {
+export const Header: React.FC<HeaderProps> = ({
+  snapshot,
+  config,
+  connectionStatus = 'connected',
+  mode = 'backend',
+  onReconnect,
+}) => {
   const [currentTime, setCurrentTime] = useState<string>('');
 
   useEffect(() => {
@@ -86,17 +95,52 @@ export const Header: React.FC<HeaderProps> = ({ snapshot, config }) => {
         </div>
       </div>
 
-      {/* System Status & C++ Integration State */}
+      {/* System Status & C++ Backend State */}
       <div className="flex items-center space-x-3 text-xs">
-        {/* C++ Backend WebSocket Target Notice */}
-        <div
-          title="Ready for C++ WebSocket backend integration"
-          className="flex items-center space-x-1.5 bg-terminal-card border border-terminal-border px-2 py-1 rounded text-slate-300"
-        >
-          <Cpu className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-[11px] font-medium text-amber-300">CPP WS:</span>
-          <span className="text-[11px] text-terminal-muted">READY</span>
-        </div>
+        {/* Dynamic C++ Backend WebSocket Status Badge */}
+        {mode === 'backend' ? (
+          <div
+            onClick={connectionStatus === 'disconnected' ? onReconnect : undefined}
+            title={
+              connectionStatus === 'connected'
+                ? 'Connected to C++ Backend on ws://localhost:4001'
+                : 'Click to attempt reconnect to ws://localhost:4001'
+            }
+            className={`flex items-center space-x-1.5 bg-terminal-card border px-2 py-1 rounded transition-colors ${
+              connectionStatus === 'connected'
+                ? 'border-emerald-500/40 text-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.2)]'
+                : connectionStatus === 'connecting'
+                ? 'border-amber-500/40 text-amber-300'
+                : 'border-rose-500/40 text-rose-300 cursor-pointer hover:bg-rose-950/20'
+            }`}
+          >
+            <Cpu
+              className={`w-3.5 h-3.5 ${
+                connectionStatus === 'connected'
+                  ? 'text-emerald-400'
+                  : connectionStatus === 'connecting'
+                  ? 'text-amber-400 animate-spin'
+                  : 'text-rose-400'
+              }`}
+            />
+            <span className="text-[11px] font-bold">
+              CPP WS:
+            </span>
+            <span className="text-[11px] uppercase tracking-wide">
+              {connectionStatus === 'connected'
+                ? 'ONLINE (4001)'
+                : connectionStatus === 'connecting'
+                ? 'CONNECTING...'
+                : 'OFFLINE (RETRY)'}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-1.5 bg-terminal-card border border-cyan-800 px-2 py-1 rounded text-cyan-300">
+            <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-[11px] font-medium">MODE:</span>
+            <span className="text-[11px] font-semibold text-cyan-400">LOCAL MOCK</span>
+          </div>
+        )}
 
         {/* Live Engine Status */}
         <div className="flex items-center space-x-1.5 bg-terminal-card border border-terminal-border px-2 py-1 rounded">
@@ -121,3 +165,4 @@ export const Header: React.FC<HeaderProps> = ({ snapshot, config }) => {
     </header>
   );
 };
+

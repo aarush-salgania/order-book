@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Send, ArrowUpRight, ArrowDownRight, CheckCircle2 } from 'lucide-react';
 import type { ManualOrderPayload, OrderBookSnapshot, OrderSide } from '../types/market';
 
 interface ManualOrderFormProps {
@@ -17,7 +16,6 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
   const [feedback, setFeedback] = useState<{ message: string; isError?: boolean } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Quick price fill buttons
   const fillBestBid = () => setPrice(snapshot.bestBid.toFixed(2));
   const fillMidPrice = () => setPrice(snapshot.midPrice.toFixed(2));
   const fillBestAsk = () => setPrice(snapshot.bestAsk.toFixed(2));
@@ -29,12 +27,12 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
     const numericQty = parseInt(quantity, 10);
 
     if (isNaN(numericPrice) || numericPrice <= 0) {
-      setFeedback({ message: 'Enter a valid positive price.', isError: true });
+      setFeedback({ message: 'Please enter a valid positive price.', isError: true });
       return;
     }
 
     if (isNaN(numericQty) || numericQty < 1 || !Number.isInteger(numericQty)) {
-      setFeedback({ message: 'Enter a valid whole number of shares (minimum 1 unit).', isError: true });
+      setFeedback({ message: 'Please enter a valid whole number of shares (min: 1).', isError: true });
       return;
     }
 
@@ -42,11 +40,6 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
     setFeedback(null);
 
     try {
-      /* ========================================================================
-       * WEBSOCKET HOOK:
-       * In the future, this triggers the WebSocket client to send a LimitOrder
-       * payload directly to the low-latency C++ matching engine socket.
-       * ======================================================================== */
       const res = await onSubmitOrder({
         price: numericPrice,
         quantity: numericQty,
@@ -55,7 +48,6 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
       });
 
       setFeedback({ message: res.message, isError: !res.success });
-      // Clear feedback after 4 seconds
       setTimeout(() => setFeedback(null), 4000);
     } catch {
       setFeedback({ message: 'Failed to submit order.', isError: true });
@@ -69,111 +61,97 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
   const estimatedTotal = numericPrice * numericQty;
 
   return (
-    <div className="bg-terminal-panel border border-terminal-border rounded-lg p-4 shadow-md flex flex-col space-y-3.5">
+    <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-3.5">
       {/* Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-terminal-border">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-          Manual Order Entry
-        </h2>
-        <div className="flex items-center space-x-1">
-          <span className="text-[10px] text-cyan-400 bg-cyan-950/40 border border-cyan-800/60 px-1.5 py-0.5 rounded font-mono">
-            POST /api/order
-          </span>
-          <span className="text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 px-1.5 py-0.5 rounded font-mono">
-            LIMIT
-          </span>
+      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+        <div>
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-200">
+            Order Entry
+          </h2>
+          <p className="text-[11px] text-slate-400">Limit Order</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-3">
+      <form onSubmit={handleSubmit} className="space-y-3 text-xs">
         {/* Side Toggle: Buy / Sell */}
-        <div className="grid grid-cols-2 gap-2 p-1 bg-terminal-card rounded border border-terminal-border">
+        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-800/80 rounded border border-slate-700">
           <button
             type="button"
             onClick={() => setSide('buy')}
-            className={`flex items-center justify-center space-x-1.5 py-1.5 text-xs font-bold rounded transition-all ${
+            className={`py-1.5 rounded font-medium transition ${
               side === 'buy'
-                ? 'bg-bid text-black shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-green-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
-            <ArrowUpRight className="w-3.5 h-3.5" />
-            <span>BUY / BID</span>
+            Buy
           </button>
-
           <button
             type="button"
             onClick={() => setSide('sell')}
-            className={`flex items-center justify-center space-x-1.5 py-1.5 text-xs font-bold rounded transition-all ${
+            className={`py-1.5 rounded font-medium transition ${
               side === 'sell'
-                ? 'bg-ask text-white shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'bg-red-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
-            <ArrowDownRight className="w-3.5 h-3.5" />
-            <span>SELL / ASK</span>
+            Sell
           </button>
         </div>
 
-        {/* Price Input & Quick Pickers */}
+        {/* Price Input */}
         <div className="space-y-1">
-          <div className="flex justify-between items-center text-xs">
-            <label className="text-terminal-muted font-medium">Order Price (INR)</label>
-            <div className="flex space-x-1 text-[10px]">
+          <div className="flex justify-between items-center text-slate-400">
+            <label>Price (₹)</label>
+            <div className="flex space-x-1.5 text-[11px]">
               <button
                 type="button"
                 onClick={fillBestBid}
-                className="text-bid hover:underline px-1"
-                title="Fill Best Bid"
+                className="hover:text-green-400 transition"
               >
-                Bid
+                Bid ({snapshot.bestBid.toFixed(2)})
               </button>
+              <span>&bull;</span>
               <button
                 type="button"
                 onClick={fillMidPrice}
-                className="text-slate-400 hover:underline px-1"
-                title="Fill Mid-Price"
+                className="hover:text-slate-200 transition"
               >
                 Mid
               </button>
+              <span>&bull;</span>
               <button
                 type="button"
                 onClick={fillBestAsk}
-                className="text-ask hover:underline px-1"
-                title="Fill Best Ask"
+                className="hover:text-red-400 transition"
               >
-                Ask
+                Ask ({snapshot.bestAsk.toFixed(2)})
               </button>
             </div>
           </div>
 
-          <div className="relative">
-            <input
-              type="number"
-              step="0.05"
-              placeholder={snapshot.midPrice ? snapshot.midPrice.toFixed(2) : '10500.00'}
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              className="w-full bg-terminal-card border border-terminal-border rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono tabular-nums"
-              required
-            />
-            <span className="absolute right-3 top-1.5 text-[11px] text-terminal-muted pointer-events-none">
-              INR
-            </span>
-          </div>
+          <input
+            type="number"
+            step="0.05"
+            placeholder={snapshot.midPrice ? snapshot.midPrice.toFixed(2) : '10500.00'}
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-white font-mono focus:outline-none focus:border-slate-500"
+            required
+          />
         </div>
 
-        {/* Quantity Input & Share Presets */}
+        {/* Quantity Input */}
         <div className="space-y-1">
-          <div className="flex justify-between items-center text-xs">
-            <label className="text-terminal-muted font-medium">Quantity (Shares)</label>
-            <div className="flex space-x-1 text-[10px]">
+          <div className="flex justify-between items-center text-slate-400">
+            <label>Shares (Whole Units)</label>
+            <div className="flex space-x-1 text-[11px]">
               {['1', '5', '10', '25', '50'].map((q) => (
                 <button
                   key={q}
                   type="button"
                   onClick={() => setQuantity(q)}
-                  className="text-slate-400 hover:text-white px-1"
+                  className="px-1 text-slate-400 hover:text-white transition"
                 >
                   {q}
                 </button>
@@ -181,67 +159,57 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
             </div>
           </div>
 
-          <div className="relative">
-            <input
-              type="number"
-              step="1"
-              min="1"
-              placeholder="1"
-              value={quantity}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === '' || /^\d+$/.test(val)) {
-                  setQuantity(val);
-                }
-              }}
-              className="w-full bg-terminal-card border border-terminal-border rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono tabular-nums"
-              required
-            />
-            <span className="absolute right-3 top-1.5 text-[11px] text-terminal-muted pointer-events-none">
-              Shares
-            </span>
-          </div>
+          <input
+            type="number"
+            step="1"
+            min="1"
+            placeholder="1"
+            value={quantity}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === '' || /^\d+$/.test(val)) {
+                setQuantity(val);
+              }
+            }}
+            className="w-full bg-slate-800 border border-slate-700 rounded px-2.5 py-1.5 text-white font-mono focus:outline-none focus:border-slate-500"
+            required
+          />
         </div>
 
-        {/* Order Value Estimation */}
-        <div className="bg-terminal-card/60 border border-terminal-border/60 rounded px-2.5 py-1.5 flex justify-between items-center text-[11px] tabular-nums">
-          <span className="text-terminal-muted">Estimated Value:</span>
-          <span className="font-medium text-slate-200">
-            ₹{estimatedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-            <span className="text-terminal-muted text-[10px]">INR</span>
+        {/* Total Estimation */}
+        <div className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-800 text-[11px]">
+          <span className="text-slate-400">Total Value:</span>
+          <span className="font-mono font-medium text-slate-200">
+            ₹{estimatedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
 
-        {/* Submission Button */}
+        {/* Submit Button */}
         <button
           type="submit"
           disabled={isSubmitting}
-          className={`w-full py-2 rounded text-xs font-bold transition-all flex items-center justify-center space-x-1.5 shadow-md ${
+          className={`w-full py-2 rounded font-medium transition text-white ${
             side === 'buy'
-              ? 'bg-bid hover:bg-bid-hover text-black'
-              : 'bg-ask hover:bg-ask-hover text-white'
+              ? 'bg-green-600 hover:bg-green-500'
+              : 'bg-red-600 hover:bg-red-500'
           }`}
         >
-          <Send className="w-3.5 h-3.5" />
-          <span>
-            {isSubmitting
-              ? 'TRANSMITTING...'
-              : `SUBMIT ${side.toUpperCase()} ORDER`}
-          </span>
+          {isSubmitting
+            ? 'Sending...'
+            : `Submit ${side === 'buy' ? 'Buy' : 'Sell'} Order`}
         </button>
       </form>
 
-      {/* Submission Feedback Alert */}
+      {/* Feedback Message */}
       {feedback && (
         <div
-          className={`p-2 rounded border text-xs flex items-start space-x-1.5 animate-fadeIn ${
+          className={`p-2 rounded text-xs border ${
             feedback.isError
-              ? 'bg-red-950/40 border-red-800 text-red-300'
-              : 'bg-emerald-950/40 border-emerald-800 text-emerald-300'
+              ? 'bg-red-900/30 border-red-800 text-red-200'
+              : 'bg-green-900/30 border-green-800 text-green-200'
           }`}
         >
-          <CheckCircle2 className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-          <span className="break-all font-mono text-[11px]">{feedback.message}</span>
+          {feedback.message}
         </div>
       )}
     </div>

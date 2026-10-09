@@ -1,5 +1,4 @@
 import React from 'react';
-import { Play, Pause, RotateCcw, Bot, Gauge, Zap, Sparkles, Server, RefreshCw } from 'lucide-react';
 import type { SimulationConfig, ConnectionStatus } from '../types/market';
 
 interface ControlPanelProps {
@@ -21,81 +20,31 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onUpdateConfig,
   onResetBook,
 }) => {
-  const toggleRunning = () => {
-    onUpdateConfig({ isRunning: !config.isRunning });
-  };
-
-  const handleBotsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onUpdateConfig({ activeBots: parseInt(e.target.value, 10) });
-  };
-
-  const handleSpeedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onUpdateConfig({ updateSpeedMs: parseInt(e.target.value, 10) });
-  };
-
   return (
-    <div className="bg-terminal-panel border border-terminal-border rounded-lg p-4 shadow-md flex flex-col space-y-4">
-      {/* Title & Engine Toggle */}
-      <div className="flex items-center justify-between pb-3 border-b border-terminal-border">
-        <div className="flex items-center space-x-2">
-          <Gauge className="w-4 h-4 text-cyan-400" />
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-            Simulator Controls
-          </h2>
-        </div>
-
-        {/* Start / Pause Primary Toggle Button */}
+    <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-4">
+      {/* Panel Header */}
+      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+          Engine Controls
+        </h2>
         <button
-          onClick={toggleRunning}
-          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded text-xs font-bold transition-all shadow-sm ${
-            config.isRunning
-              ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30'
-              : 'bg-bid/10 hover:bg-bid/20 text-bid border border-bid/40'
-          }`}
-          title={config.isRunning ? 'Pause simulation ticks' : 'Start simulation ticks'}
+          onClick={onResetBook}
+          className="text-xs text-slate-400 hover:text-white px-2 py-0.5 rounded border border-slate-700 bg-slate-800 transition"
         >
-          {config.isRunning ? (
-            <>
-              <Pause className="w-3.5 h-3.5 fill-current" />
-              <span>PAUSE SIM</span>
-            </>
-          ) : (
-            <>
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>START SIM</span>
-            </>
-          )}
+          Reset Book
         </button>
       </div>
 
-      {/* Backend Engine Integration Card */}
-      <div className="bg-terminal-card border border-terminal-border/80 rounded-md p-2.5 space-y-2">
-        <div className="flex items-center justify-between text-xs">
-          <span className="flex items-center space-x-1.5 font-bold text-slate-300">
-            <Server className="w-3.5 h-3.5 text-cyan-400" />
-            <span>ENGINE GATEWAY</span>
-          </span>
-
-          {mode === 'backend' && onReconnect && (
-            <button
-              onClick={onReconnect}
-              title="Reconnect to Backend WebSocket (ws://localhost:4001)"
-              className="text-[10px] text-slate-400 hover:text-cyan-400 flex items-center space-x-1 bg-terminal-panel px-1.5 py-0.5 rounded border border-terminal-border transition-colors"
-            >
-              <RefreshCw className="w-2.5 h-2.5" />
-              <span>Reconnect</span>
-            </button>
-          )}
-        </div>
-
-        {/* Mode Switcher */}
-        {onSetMode && (
-          <div className="grid grid-cols-2 gap-1.5 bg-terminal-panel p-1 rounded border border-terminal-border text-[11px] font-semibold">
+      {/* Mode Switcher */}
+      {onSetMode && (
+        <div className="space-y-1.5">
+          <label className="text-xs text-slate-400">Execution Mode</label>
+          <div className="grid grid-cols-2 gap-1.5 bg-slate-800 p-1 rounded border border-slate-700 text-xs">
             <button
               onClick={() => onSetMode('backend')}
-              className={`py-1 rounded text-center transition-all ${
+              className={`py-1 rounded text-center transition ${
                 mode === 'backend'
-                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold shadow-sm'
+                  ? 'bg-slate-900 text-white font-medium shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -103,188 +52,109 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             </button>
             <button
               onClick={() => onSetMode('mock')}
-              className={`py-1 rounded text-center transition-all ${
+              className={`py-1 rounded text-center transition ${
                 mode === 'mock'
-                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-800 font-bold shadow-sm'
+                  ? 'bg-slate-900 text-white font-medium shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Mock Sim
+              Mock Simulator
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Gateway Endpoints & Live Status */}
-        {mode === 'backend' ? (
-          <div className="text-[10px] space-y-1 text-terminal-muted tabular-nums">
-            <div className="flex justify-between items-center">
-              <span>HTTP POST:</span>
-              <span className="text-slate-300 font-mono">http://localhost:4000/api/order</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span>WS FEED:</span>
-              <span className="text-slate-300 font-mono">ws://localhost:4001</span>
-            </div>
-            <div className="flex justify-between items-center pt-0.5 border-t border-terminal-border/40">
-              <span>STATUS:</span>
-              <span
-                className={`font-bold uppercase ${
-                  connectionStatus === 'connected'
-                    ? 'text-emerald-400'
-                    : connectionStatus === 'connecting'
-                    ? 'text-amber-400'
-                    : 'text-rose-400'
-                }`}
-              >
-                {connectionStatus}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="text-[10px] text-terminal-muted">
-            Running standalone mock data provider (in-memory simulator).
-          </div>
-        )}
-      </div>
-
-
-      {/* Mode-Dependent Controls */}
+      {/* Mode Content */}
       {mode === 'backend' ? (
-        <div className="bg-terminal-card/80 border border-cyan-800/60 rounded p-3 space-y-2 text-xs">
-          <div className="flex items-center space-x-2 text-cyan-400 font-bold">
-            <Sparkles className="w-4 h-4 text-cyan-400" />
-            <span>DIRECT ENGINE MODE</span>
+        <div className="space-y-2 text-xs bg-slate-800/60 p-3 rounded border border-slate-800 text-slate-300">
+          <div className="flex justify-between items-center text-[11px]">
+            <span className="text-slate-400">Backend API:</span>
+            <span className="font-mono text-slate-300">http://localhost:4000</span>
           </div>
-          <p className="text-[11px] text-terminal-muted leading-relaxed">
-            Automated bot micro-ticks are paused. Order book updates and executions are driven exclusively by your manual order entries and live output from <span className="text-white font-mono">order_book.exe</span>.
+          <div className="flex justify-between items-center text-[11px]">
+            <span className="text-slate-400">WebSocket Feed:</span>
+            <span className="font-mono text-slate-300">ws://localhost:4001</span>
+          </div>
+          <div className="flex justify-between items-center text-[11px] pt-1 border-t border-slate-700/60">
+            <span className="text-slate-400">Status:</span>
+            <span
+              className={`font-semibold ${
+                connectionStatus === 'connected'
+                  ? 'text-green-400'
+                  : connectionStatus === 'connecting'
+                  ? 'text-amber-400'
+                  : 'text-red-400'
+              }`}
+            >
+              {connectionStatus === 'connected'
+                ? 'Online'
+                : connectionStatus === 'connecting'
+                ? 'Connecting...'
+                : 'Offline'}
+            </span>
+          </div>
+
+          {connectionStatus === 'disconnected' && onReconnect && (
+            <button
+              onClick={onReconnect}
+              className="w-full mt-2 py-1 text-xs text-center rounded bg-slate-700 hover:bg-slate-600 text-white transition"
+            >
+              Reconnect to Backend
+            </button>
+          )}
+
+          <p className="text-[11px] text-slate-400 pt-1 leading-normal">
+            Orders placed in the manual entry form are submitted to the C++ engine stdin and broadcast in real-time.
           </p>
-          <div className="pt-2 border-t border-terminal-border/60 flex items-center justify-between text-[10px] text-slate-300">
-            <span>INTAKE ROUTE:</span>
-            <span className="text-emerald-400 font-mono font-bold">STDIN STREAM</span>
-          </div>
         </div>
       ) : (
-        <>
-          {/* Control 1: Active Bots Slider */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between items-center text-xs">
-              <span className="flex items-center space-x-1.5 text-slate-300 font-medium">
-                <Bot className="w-3.5 h-3.5 text-slate-400" />
-                <span>Active Bots</span>
-              </span>
-              <span className="bg-terminal-card border border-terminal-border px-2 py-0.5 rounded text-cyan-400 font-bold tabular-nums">
-                {config.activeBots} <span className="text-terminal-muted font-normal">bots</span>
-              </span>
-            </div>
+        <div className="space-y-3 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">Simulator Status:</span>
+            <button
+              onClick={() => onUpdateConfig({ isRunning: !config.isRunning })}
+              className={`px-2.5 py-1 rounded font-medium text-xs transition ${
+                config.isRunning
+                  ? 'bg-amber-600/20 text-amber-300 border border-amber-600/40 hover:bg-amber-600/30'
+                  : 'bg-green-600/20 text-green-300 border border-green-600/40 hover:bg-green-600/30'
+              }`}
+            >
+              {config.isRunning ? 'Pause Sim' : 'Start Sim'}
+            </button>
+          </div>
 
+          <div className="space-y-1">
+            <div className="flex justify-between text-slate-400">
+              <span>Active Bots:</span>
+              <span className="text-white font-mono">{config.activeBots}</span>
+            </div>
             <input
               type="range"
               min="1"
-              max="100"
+              max="50"
               value={config.activeBots}
-              onChange={handleBotsChange}
-              className="w-full h-1.5 bg-terminal-card rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-terminal-border"
+              onChange={(e) => onUpdateConfig({ activeBots: parseInt(e.target.value, 10) })}
+              className="w-full h-1.5 bg-slate-800 rounded accent-slate-400"
             />
-
-            {/* Bot Presets */}
-            <div className="flex justify-between items-center pt-1 text-[10px] text-terminal-muted">
-              <span>1 bot</span>
-              <div className="flex space-x-1">
-                {[5, 25, 50, 100].map((preset) => (
-                  <button
-                    key={preset}
-                    onClick={() => onUpdateConfig({ activeBots: preset })}
-                    className={`px-1.5 py-0.5 rounded border transition-colors ${
-                      config.activeBots === preset
-                        ? 'border-cyan-500 text-cyan-400 bg-cyan-950/40 font-bold'
-                        : 'border-terminal-border hover:border-slate-500 text-slate-400'
-                    }`}
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
-              <span>100 bots</span>
-            </div>
           </div>
 
-          {/* Control 2: Market Speed Slider */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between items-center text-xs">
-              <span className="flex items-center space-x-1.5 text-slate-300 font-medium">
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
-                <span>Market Speed</span>
-              </span>
-              <span className="bg-terminal-card border border-terminal-border px-2 py-0.5 rounded text-amber-400 font-bold tabular-nums">
-                {config.updateSpeedMs} <span className="text-terminal-muted font-normal">ms/tick</span>
-              </span>
+          <div className="space-y-1">
+            <div className="flex justify-between text-slate-400">
+              <span>Tick Interval:</span>
+              <span className="text-white font-mono">{config.updateSpeedMs}ms</span>
             </div>
-
             <input
               type="range"
               min="100"
-              max="2000"
+              max="1500"
               step="50"
               value={config.updateSpeedMs}
-              onChange={handleSpeedChange}
-              className="w-full h-1.5 bg-terminal-card rounded-lg appearance-none cursor-pointer accent-amber-400 border border-terminal-border"
+              onChange={(e) => onUpdateConfig({ updateSpeedMs: parseInt(e.target.value, 10) })}
+              className="w-full h-1.5 bg-slate-800 rounded accent-slate-400"
             />
-
-            {/* Speed Presets */}
-            <div className="flex justify-between items-center pt-1 text-[10px] text-terminal-muted">
-              <div className="flex space-x-1.5 w-full justify-between">
-                <button
-                  onClick={() => onUpdateConfig({ updateSpeedMs: 100 })}
-                  className={`px-2 py-0.5 rounded border transition-colors ${
-                    config.updateSpeedMs === 100
-                      ? 'border-amber-500 text-amber-400 bg-amber-950/40 font-bold'
-                      : 'border-terminal-border hover:border-slate-500 text-slate-400'
-                  }`}
-                >
-                  100ms (Max)
-                </button>
-                <button
-                  onClick={() => onUpdateConfig({ updateSpeedMs: 250 })}
-                  className={`px-2 py-0.5 rounded border transition-colors ${
-                    config.updateSpeedMs === 250
-                      ? 'border-amber-500 text-amber-400 bg-amber-950/40 font-bold'
-                      : 'border-terminal-border hover:border-slate-500 text-slate-400'
-                  }`}
-                >
-                  250ms (Norm)
-                </button>
-                <button
-                  onClick={() => onUpdateConfig({ updateSpeedMs: 1000 })}
-                  className={`px-2 py-0.5 rounded border transition-colors ${
-                    config.updateSpeedMs === 1000
-                      ? 'border-amber-500 text-amber-400 bg-amber-950/40 font-bold'
-                      : 'border-terminal-border hover:border-slate-500 text-slate-400'
-                  }`}
-                >
-                  1000ms (Slow)
-                </button>
-              </div>
-            </div>
           </div>
-        </>
+        </div>
       )}
-
-      {/* Action Footer: Reset Order Book */}
-      <div className="pt-2 border-t border-terminal-border flex items-center justify-between">
-        <span className="text-[10px] text-terminal-muted flex items-center space-x-1">
-          <Sparkles className="w-3 h-3 text-cyan-400" />
-          <span>{mode === 'backend' ? 'Manual Engine Mode' : 'Synthesizing Micro-Ticks'}</span>
-        </span>
-
-        <button
-          onClick={onResetBook}
-          className="flex items-center space-x-1 px-2 py-1 text-[11px] font-medium text-slate-400 hover:text-slate-200 bg-terminal-card hover:bg-terminal-border/40 border border-terminal-border rounded transition-colors"
-          title="Reset book to clean snapshot"
-        >
-          <RotateCcw className="w-3 h-3" />
-          <span>Reset Book</span>
-        </button>
-      </div>
     </div>
   );
 };

@@ -148,113 +148,132 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       </div>
 
 
-      {/* Control 1: Active Bots Slider */}
-      <div className="space-y-1.5">
-        <div className="flex justify-between items-center text-xs">
-          <span className="flex items-center space-x-1.5 text-slate-300 font-medium">
-            <Bot className="w-3.5 h-3.5 text-slate-400" />
-            <span>Active Bots</span>
-          </span>
-          <span className="bg-terminal-card border border-terminal-border px-2 py-0.5 rounded text-cyan-400 font-bold tabular-nums">
-            {config.activeBots} <span className="text-terminal-muted font-normal">bots</span>
-          </span>
-        </div>
-
-        <input
-          type="range"
-          min="1"
-          max="100"
-          value={config.activeBots}
-          onChange={handleBotsChange}
-          className="w-full h-1.5 bg-terminal-card rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-terminal-border"
-        />
-
-        {/* Bot Presets */}
-        <div className="flex justify-between items-center pt-1 text-[10px] text-terminal-muted">
-          <span>1 bot</span>
-          <div className="flex space-x-1">
-            {[5, 25, 50, 100].map((preset) => (
-              <button
-                key={preset}
-                onClick={() => onUpdateConfig({ activeBots: preset })}
-                className={`px-1.5 py-0.5 rounded border transition-colors ${
-                  config.activeBots === preset
-                    ? 'border-cyan-500 text-cyan-400 bg-cyan-950/40 font-bold'
-                    : 'border-terminal-border hover:border-slate-500 text-slate-400'
-                }`}
-              >
-                {preset}
-              </button>
-            ))}
+      {/* Mode-Dependent Controls */}
+      {mode === 'backend' ? (
+        <div className="bg-terminal-card/80 border border-cyan-800/60 rounded p-3 space-y-2 text-xs">
+          <div className="flex items-center space-x-2 text-cyan-400 font-bold">
+            <Sparkles className="w-4 h-4 text-cyan-400" />
+            <span>DIRECT ENGINE MODE</span>
           </div>
-          <span>100 bots</span>
-        </div>
-      </div>
-
-      {/* Control 2: Market Speed Slider */}
-      <div className="space-y-1.5">
-        <div className="flex justify-between items-center text-xs">
-          <span className="flex items-center space-x-1.5 text-slate-300 font-medium">
-            <Zap className="w-3.5 h-3.5 text-amber-400" />
-            <span>Market Speed</span>
-          </span>
-          <span className="bg-terminal-card border border-terminal-border px-2 py-0.5 rounded text-amber-400 font-bold tabular-nums">
-            {config.updateSpeedMs} <span className="text-terminal-muted font-normal">ms/tick</span>
-          </span>
-        </div>
-
-        <input
-          type="range"
-          min="100"
-          max="2000"
-          step="50"
-          value={config.updateSpeedMs}
-          onChange={handleSpeedChange}
-          className="w-full h-1.5 bg-terminal-card rounded-lg appearance-none cursor-pointer accent-amber-400 border border-terminal-border"
-        />
-
-        {/* Speed Presets */}
-        <div className="flex justify-between items-center pt-1 text-[10px] text-terminal-muted">
-          <div className="flex space-x-1.5 w-full justify-between">
-            <button
-              onClick={() => onUpdateConfig({ updateSpeedMs: 100 })}
-              className={`px-2 py-0.5 rounded border transition-colors ${
-                config.updateSpeedMs === 100
-                  ? 'border-amber-500 text-amber-400 bg-amber-950/40 font-bold'
-                  : 'border-terminal-border hover:border-slate-500 text-slate-400'
-              }`}
-            >
-              100ms (Max)
-            </button>
-            <button
-              onClick={() => onUpdateConfig({ updateSpeedMs: 250 })}
-              className={`px-2 py-0.5 rounded border transition-colors ${
-                config.updateSpeedMs === 250
-                  ? 'border-amber-500 text-amber-400 bg-amber-950/40 font-bold'
-                  : 'border-terminal-border hover:border-slate-500 text-slate-400'
-              }`}
-            >
-              250ms (Norm)
-            </button>
-            <button
-              onClick={() => onUpdateConfig({ updateSpeedMs: 1000 })}
-              className={`px-2 py-0.5 rounded border transition-colors ${
-                config.updateSpeedMs === 1000
-                  ? 'border-amber-500 text-amber-400 bg-amber-950/40 font-bold'
-                  : 'border-terminal-border hover:border-slate-500 text-slate-400'
-              }`}
-            >
-              1000ms (Slow)
-            </button>
+          <p className="text-[11px] text-terminal-muted leading-relaxed">
+            Automated bot micro-ticks are paused. Order book updates and executions are driven exclusively by your manual order entries and live output from <span className="text-white font-mono">order_book.exe</span>.
+          </p>
+          <div className="pt-2 border-t border-terminal-border/60 flex items-center justify-between text-[10px] text-slate-300">
+            <span>INTAKE ROUTE:</span>
+            <span className="text-emerald-400 font-mono font-bold">STDIN STREAM</span>
           </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Control 1: Active Bots Slider */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-center text-xs">
+              <span className="flex items-center space-x-1.5 text-slate-300 font-medium">
+                <Bot className="w-3.5 h-3.5 text-slate-400" />
+                <span>Active Bots</span>
+              </span>
+              <span className="bg-terminal-card border border-terminal-border px-2 py-0.5 rounded text-cyan-400 font-bold tabular-nums">
+                {config.activeBots} <span className="text-terminal-muted font-normal">bots</span>
+              </span>
+            </div>
+
+            <input
+              type="range"
+              min="1"
+              max="100"
+              value={config.activeBots}
+              onChange={handleBotsChange}
+              className="w-full h-1.5 bg-terminal-card rounded-lg appearance-none cursor-pointer accent-cyan-400 border border-terminal-border"
+            />
+
+            {/* Bot Presets */}
+            <div className="flex justify-between items-center pt-1 text-[10px] text-terminal-muted">
+              <span>1 bot</span>
+              <div className="flex space-x-1">
+                {[5, 25, 50, 100].map((preset) => (
+                  <button
+                    key={preset}
+                    onClick={() => onUpdateConfig({ activeBots: preset })}
+                    className={`px-1.5 py-0.5 rounded border transition-colors ${
+                      config.activeBots === preset
+                        ? 'border-cyan-500 text-cyan-400 bg-cyan-950/40 font-bold'
+                        : 'border-terminal-border hover:border-slate-500 text-slate-400'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+              <span>100 bots</span>
+            </div>
+          </div>
+
+          {/* Control 2: Market Speed Slider */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-center text-xs">
+              <span className="flex items-center space-x-1.5 text-slate-300 font-medium">
+                <Zap className="w-3.5 h-3.5 text-amber-400" />
+                <span>Market Speed</span>
+              </span>
+              <span className="bg-terminal-card border border-terminal-border px-2 py-0.5 rounded text-amber-400 font-bold tabular-nums">
+                {config.updateSpeedMs} <span className="text-terminal-muted font-normal">ms/tick</span>
+              </span>
+            </div>
+
+            <input
+              type="range"
+              min="100"
+              max="2000"
+              step="50"
+              value={config.updateSpeedMs}
+              onChange={handleSpeedChange}
+              className="w-full h-1.5 bg-terminal-card rounded-lg appearance-none cursor-pointer accent-amber-400 border border-terminal-border"
+            />
+
+            {/* Speed Presets */}
+            <div className="flex justify-between items-center pt-1 text-[10px] text-terminal-muted">
+              <div className="flex space-x-1.5 w-full justify-between">
+                <button
+                  onClick={() => onUpdateConfig({ updateSpeedMs: 100 })}
+                  className={`px-2 py-0.5 rounded border transition-colors ${
+                    config.updateSpeedMs === 100
+                      ? 'border-amber-500 text-amber-400 bg-amber-950/40 font-bold'
+                      : 'border-terminal-border hover:border-slate-500 text-slate-400'
+                  }`}
+                >
+                  100ms (Max)
+                </button>
+                <button
+                  onClick={() => onUpdateConfig({ updateSpeedMs: 250 })}
+                  className={`px-2 py-0.5 rounded border transition-colors ${
+                    config.updateSpeedMs === 250
+                      ? 'border-amber-500 text-amber-400 bg-amber-950/40 font-bold'
+                      : 'border-terminal-border hover:border-slate-500 text-slate-400'
+                  }`}
+                >
+                  250ms (Norm)
+                </button>
+                <button
+                  onClick={() => onUpdateConfig({ updateSpeedMs: 1000 })}
+                  className={`px-2 py-0.5 rounded border transition-colors ${
+                    config.updateSpeedMs === 1000
+                      ? 'border-amber-500 text-amber-400 bg-amber-950/40 font-bold'
+                      : 'border-terminal-border hover:border-slate-500 text-slate-400'
+                  }`}
+                >
+                  1000ms (Slow)
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Action Footer: Reset Order Book */}
       <div className="pt-2 border-t border-terminal-border flex items-center justify-between">
         <span className="text-[10px] text-terminal-muted flex items-center space-x-1">
           <Sparkles className="w-3 h-3 text-cyan-400" />
-          <span>Synthesizing Micro-Ticks</span>
+          <span>{mode === 'backend' ? 'Manual Engine Mode' : 'Synthesizing Micro-Ticks'}</span>
         </span>
 
         <button

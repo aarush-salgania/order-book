@@ -29,8 +29,8 @@ export class BackendOrderBookService implements IOrderBookService {
   private status: ConnectionStatus = 'disconnected';
 
   private config: SimulationConfig = {
-    isRunning: true,
-    activeBots: 10,
+    isRunning: false,
+    activeBots: 0,
     updateSpeedMs: 500,
   };
 

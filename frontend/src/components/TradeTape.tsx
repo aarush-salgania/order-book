@@ -54,12 +54,12 @@ const TradeRow = memo(({ trade, isLatest }: { trade: Trade; isLatest: boolean })
           isBuy ? 'text-bid' : 'text-ask'
         }`}
       >
-        ${trade.price.toFixed(2)}
+        ₹{trade.price.toFixed(2)}
       </span>
 
       {/* Quantity */}
       <span className="text-slate-300 text-right">
-        {trade.quantity.toFixed(4)}
+        {Math.round(trade.quantity)}
       </span>
     </div>
   );
@@ -108,7 +108,7 @@ export const TradeTape: React.FC<TradeTapeProps> = ({ trades }) => {
         <span>Time</span>
         <span>Side</span>
         <span className="text-right">Price</span>
-        <span className="text-right">Size (BTC)</span>
+        <span className="text-right">Size (Shares)</span>
       </div>
 
       {/* Scrolling Trade Stream */}

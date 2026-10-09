@@ -30,12 +30,12 @@ export class MockDataService implements IOrderBookService {
     updateSpeedMs: 250,
   };
 
-  private basePrice = 64250.0;
-  private lastPrice = 64250.0;
-  private high24h = 64890.5;
-  private low24h = 63620.0;
-  private volume24h = 4280.45;
-  private priceChangePercent24h = 1.42;
+  private basePrice = 10520.0;
+  private lastPrice = 10520.0;
+  private high24h = 10680.0;
+  private low24h = 10410.0;
+  private volume24h = 245890;
+  private priceChangePercent24h = 1.05;
 
   private bids: Map<number, number> = new Map(); // price -> quantity
   private asks: Map<number, number> = new Map(); // price -> quantity
@@ -85,16 +85,15 @@ export class MockDataService implements IOrderBookService {
     // Generate bids descending from basePrice - tickSize
     for (let i = 1; i <= this.depthLevels; i++) {
       const price = +(this.basePrice - i * this.tickSize).toFixed(2);
-      // Liquidity depth expands non-linearly away from spread
-      const baseQty = 0.15 + (i * 0.12) + Math.random() * 0.8;
-      this.bids.set(price, +baseQty.toFixed(4));
+      const baseQty = Math.round(5 + i * 2 + Math.random() * 15);
+      this.bids.set(price, baseQty);
     }
 
     // Generate asks ascending from basePrice + tickSize
     for (let i = 1; i <= this.depthLevels; i++) {
       const price = +(this.basePrice + i * this.tickSize).toFixed(2);
-      const baseQty = 0.15 + (i * 0.12) + Math.random() * 0.8;
-      this.asks.set(price, +baseQty.toFixed(4));
+      const baseQty = Math.round(5 + i * 2 + Math.random() * 15);
+      this.asks.set(price, baseQty);
     }
   }
 
@@ -105,9 +104,9 @@ export class MockDataService implements IOrderBookService {
     const now = Date.now();
     for (let i = 20; i >= 0; i--) {
       const side: OrderSide = Math.random() > 0.48 ? 'buy' : 'sell';
-      const offset = (Math.random() - 0.5) * 4;
+      const offset = (Math.random() - 0.5) * 6;
       const price = +(this.basePrice + offset).toFixed(2);
-      const quantity = +(0.05 + Math.random() * 1.2).toFixed(4);
+      const quantity = Math.round(1 + Math.random() * 20);
 
       this.recentTrades.push({
         id: `trade-seed-${i}-${Math.random().toString(36).substring(2, 7)}`,
@@ -187,7 +186,7 @@ export class MockDataService implements IOrderBookService {
     const bestAsk = this.getBestAsk();
 
     const price = side === 'buy' ? bestAsk : bestBid;
-    const quantity = +(0.02 + Math.random() * 0.75).toFixed(4);
+    const quantity = Math.round(1 + Math.random() * 15);
 
     this.lastPrice = price;
     this.volume24h += quantity;
@@ -289,39 +288,22 @@ export class MockDataService implements IOrderBookService {
   // MANUAL ORDER INGESTION (WebSocket Emitter Hook)
   // ============================================================================
   public async sendOrder(order: ManualOrderPayload): Promise<{ success: boolean; message: string }> {
-    /* ========================================================================
-     * WEBSOCKET HOOK: Send order packet to C++ Limit Order Book backend
-     * Example:
-     * if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-     *   this.ws.send(JSON.stringify({
-     *     action: 'NEW_ORDER',
-     *     price: order.price,
-     *     quantity: order.quantity,
-     *     side: order.side,
-     *     type: order.type,
-     *     timestampNs: performance.now() * 1e6
-     *   }));
-     *   return { success: true, message: `Dispatched to C++ backend: ${order.side.toUpperCase()} ${order.quantity} @ ${order.price}` };
-     * }
-     * ======================================================================== */
-
-    // In Mock mode: acknowledge order and visually reflect the resting quantity in the book
     const price = +order.price.toFixed(2);
-    const qty = +order.quantity.toFixed(4);
+    const qty = Math.max(1, Math.round(order.quantity));
 
     if (order.side === 'buy') {
       const existing = this.bids.get(price) || 0;
-      this.bids.set(price, +(existing + qty).toFixed(4));
+      this.bids.set(price, existing + qty);
     } else {
       const existing = this.asks.get(price) || 0;
-      this.asks.set(price, +(existing + qty).toFixed(4));
+      this.asks.set(price, existing + qty);
     }
 
     this.notifyBookListeners();
 
     return {
       success: true,
-      message: `[Simulated] Order accepted: ${order.side.toUpperCase()} ${order.quantity} @ $${order.price.toFixed(2)}`,
+      message: `[Simulated] Order accepted: ${order.side.toUpperCase()} ${qty} shares @ ₹${order.price.toFixed(2)}`,
     };
   }
 

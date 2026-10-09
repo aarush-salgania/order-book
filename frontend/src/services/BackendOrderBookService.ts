@@ -34,12 +34,12 @@ export class BackendOrderBookService implements IOrderBookService {
     updateSpeedMs: 500,
   };
 
-  private basePrice = 64250.0;
-  private lastPrice = 64250.0;
-  private high24h = 64890.5;
-  private low24h = 63620.0;
-  private volume24h = 4280.45;
-  private priceChangePercent24h = 1.42;
+  private basePrice = 10520.0;
+  private lastPrice = 10520.0;
+  private high24h = 10680.0;
+  private low24h = 10410.0;
+  private volume24h = 245890;
+  private priceChangePercent24h = 1.05;
 
   private bids: Map<number, number> = new Map();
   private asks: Map<number, number> = new Map();
@@ -252,7 +252,7 @@ export class BackendOrderBookService implements IOrderBookService {
 
   private applyTrade(details: { price: number; quantity: number; side: OrderSide }): void {
     const price = +details.price.toFixed(2);
-    const quantity = +details.quantity.toFixed(4);
+    const quantity = Math.max(1, Math.round(details.quantity));
     const side = details.side;
 
     this.lastPrice = price;
@@ -266,13 +266,13 @@ export class BackendOrderBookService implements IOrderBookService {
       const askQty = this.asks.get(price);
       if (askQty !== undefined) {
         if (askQty <= quantity) this.asks.delete(price);
-        else this.asks.set(price, +(askQty - quantity).toFixed(4));
+        else this.asks.set(price, Math.round(askQty - quantity));
       }
     } else {
       const bidQty = this.bids.get(price);
       if (bidQty !== undefined) {
         if (bidQty <= quantity) this.bids.delete(price);
-        else this.bids.set(price, +(bidQty - quantity).toFixed(4));
+        else this.bids.set(price, Math.round(bidQty - quantity));
       }
     }
 
@@ -296,7 +296,7 @@ export class BackendOrderBookService implements IOrderBookService {
     order: ManualOrderPayload
   ): Promise<{ success: boolean; message: string }> {
     const formattedPrice = +order.price.toFixed(2);
-    const formattedQty = +order.quantity.toFixed(4);
+    const formattedQty = Math.max(1, Math.round(order.quantity));
 
     // Structure the payload for the C++ engine
     const orderData = {
@@ -312,10 +312,10 @@ export class BackendOrderBookService implements IOrderBookService {
     // Add to local book optimistically so user sees their resting order immediately
     if (order.side === 'buy') {
       const existing = this.bids.get(formattedPrice) || 0;
-      this.bids.set(formattedPrice, +(existing + formattedQty).toFixed(4));
+      this.bids.set(formattedPrice, existing + formattedQty);
     } else {
       const existing = this.asks.get(formattedPrice) || 0;
-      this.asks.set(formattedPrice, +(existing + formattedQty).toFixed(4));
+      this.asks.set(formattedPrice, existing + formattedQty);
     }
     this.notifyBookListeners();
 
@@ -336,7 +336,7 @@ export class BackendOrderBookService implements IOrderBookService {
       const resJson = await response.json();
       return {
         success: true,
-        message: `Order sent to C++ Engine: ${order.side.toUpperCase()} ${formattedQty} @ $${formattedPrice.toFixed(2)} (${resJson.status || 'Success'})`,
+        message: `Order sent to C++ Engine: ${order.side.toUpperCase()} ${formattedQty} shares @ ₹${formattedPrice.toFixed(2)} (${resJson.status || 'Success'})`,
       };
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
@@ -348,7 +348,7 @@ export class BackendOrderBookService implements IOrderBookService {
           this.ws.send(JSON.stringify({ action: 'order', order: orderString }));
           return {
             success: true,
-            message: `Dispatched via WebSocket fallback: ${order.side.toUpperCase()} ${formattedQty} @ $${formattedPrice.toFixed(2)}`,
+            message: `Dispatched via WebSocket fallback: ${order.side.toUpperCase()} ${formattedQty} shares @ ₹${formattedPrice.toFixed(2)}`,
           };
         } catch (wsErr) {
           console.error('[Backend WS Error] Fallback send failed:', wsErr);
@@ -408,14 +408,14 @@ export class BackendOrderBookService implements IOrderBookService {
 
     for (let i = 1; i <= this.depthLevels; i++) {
       const price = +(this.basePrice - i * this.tickSize).toFixed(2);
-      const baseQty = 0.2 + i * 0.1 + Math.random() * 0.5;
-      this.bids.set(price, +baseQty.toFixed(4));
+      const baseQty = Math.round(5 + i * 2 + Math.random() * 15);
+      this.bids.set(price, baseQty);
     }
 
     for (let i = 1; i <= this.depthLevels; i++) {
       const price = +(this.basePrice + i * this.tickSize).toFixed(2);
-      const baseQty = 0.2 + i * 0.1 + Math.random() * 0.5;
-      this.asks.set(price, +baseQty.toFixed(4));
+      const baseQty = Math.round(5 + i * 2 + Math.random() * 15);
+      this.asks.set(price, baseQty);
     }
   }
 
@@ -423,8 +423,8 @@ export class BackendOrderBookService implements IOrderBookService {
     const now = Date.now();
     for (let i = 15; i >= 0; i--) {
       const side: OrderSide = Math.random() > 0.5 ? 'buy' : 'sell';
-      const price = +(this.basePrice + (Math.random() - 0.5) * 3).toFixed(2);
-      const quantity = +(0.05 + Math.random() * 0.8).toFixed(4);
+      const price = +(this.basePrice + (Math.random() - 0.5) * 5).toFixed(2);
+      const quantity = Math.round(1 + Math.random() * 20);
 
       this.recentTrades.push({
         id: `seed-${i}-${Math.random().toString(36).substring(2, 6)}`,

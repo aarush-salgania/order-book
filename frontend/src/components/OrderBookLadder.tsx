@@ -19,10 +19,10 @@ const BidRow = memo(({ level }: { level: OrderBookLevel }) => {
       />
 
       <span className="relative z-10 text-slate-400 group-hover:text-slate-200">
-        {level.total.toFixed(3)}
+        {Math.round(level.total)}
       </span>
       <span className="relative z-10 text-slate-300 font-medium">
-        {level.quantity.toFixed(4)}
+        {Math.round(level.quantity)}
       </span>
       <span className="relative z-10 text-bid font-bold text-right">
         {level.price.toFixed(2)}
@@ -49,10 +49,10 @@ const AskRow = memo(({ level }: { level: OrderBookLevel }) => {
         {level.price.toFixed(2)}
       </span>
       <span className="relative z-10 text-slate-300 font-medium text-center">
-        {level.quantity.toFixed(4)}
+        {Math.round(level.quantity)}
       </span>
       <span className="relative z-10 text-slate-400 group-hover:text-slate-200 text-right">
-        {level.total.toFixed(3)}
+        {Math.round(level.total)}
       </span>
     </div>
   );
@@ -78,13 +78,13 @@ export const OrderBookLadder: React.FC<OrderBookLadderProps> = ({ snapshot }) =>
         <div className="flex items-center space-x-4 text-xs font-mono tabular-nums">
           <div className="flex items-center space-x-1.5 bg-terminal-card border border-terminal-border px-2.5 py-1 rounded">
             <span className="text-[11px] text-terminal-muted uppercase">Spread:</span>
-            <span className="font-bold text-slate-200">${spread.toFixed(2)}</span>
+            <span className="font-bold text-slate-200">₹{spread.toFixed(2)}</span>
             <span className="text-[10px] text-terminal-muted">({spreadPercent.toFixed(3)}%)</span>
           </div>
 
           <div className="flex items-center space-x-1 bg-terminal-card border border-terminal-border px-2.5 py-1 rounded">
             <span className="text-[11px] text-terminal-muted uppercase">Mid:</span>
-            <span className="font-bold text-cyan-400">${midPrice.toFixed(2)}</span>
+            <span className="font-bold text-cyan-400">₹{midPrice.toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -94,14 +94,14 @@ export const OrderBookLadder: React.FC<OrderBookLadderProps> = ({ snapshot }) =>
         {/* Bids Header */}
         <div className="grid grid-cols-3 px-3 py-1.5 border-r border-terminal-border text-center">
           <span className="text-left">Cumul</span>
-          <span>Size (BTC)</span>
-          <span className="text-right text-bid">Bid (USDT)</span>
+          <span>Size (Shares)</span>
+          <span className="text-right text-bid">Bid (INR)</span>
         </div>
 
         {/* Asks Header */}
         <div className="grid grid-cols-3 px-3 py-1.5 text-center">
-          <span className="text-left text-ask">Ask (USDT)</span>
-          <span>Size (BTC)</span>
+          <span className="text-left text-ask">Ask (INR)</span>
+          <span>Size (Shares)</span>
           <span className="text-right">Cumul</span>
         </div>
       </div>
@@ -138,7 +138,7 @@ export const OrderBookLadder: React.FC<OrderBookLadderProps> = ({ snapshot }) =>
         <div className="flex items-center space-x-2">
           <span className="text-terminal-muted text-[11px]">Best Bid:</span>
           <span className="font-bold text-bid tabular-nums">
-            ${snapshot.bestBid.toFixed(2)}
+            ₹{snapshot.bestBid.toFixed(2)}
           </span>
         </div>
 
@@ -149,14 +149,14 @@ export const OrderBookLadder: React.FC<OrderBookLadderProps> = ({ snapshot }) =>
             <ArrowDown className="w-3.5 h-3.5 text-ask animate-bounce" />
           )}
           <span className={lastPrice >= midPrice ? 'text-bid' : 'text-ask'}>
-            ${lastPrice.toFixed(2)}
+            ₹{lastPrice.toFixed(2)}
           </span>
         </div>
 
         <div className="flex items-center space-x-2">
           <span className="text-terminal-muted text-[11px]">Best Ask:</span>
           <span className="font-bold text-ask tabular-nums">
-            ${snapshot.bestAsk.toFixed(2)}
+            ₹{snapshot.bestAsk.toFixed(2)}
           </span>
         </div>
       </div>

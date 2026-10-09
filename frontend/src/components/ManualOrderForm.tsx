@@ -13,7 +13,7 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
 }) => {
   const [side, setSide] = useState<OrderSide>('buy');
   const [price, setPrice] = useState<string>('');
-  const [quantity, setQuantity] = useState<string>('0.25');
+  const [quantity, setQuantity] = useState<string>('1');
   const [feedback, setFeedback] = useState<{ message: string; isError?: boolean } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -26,15 +26,15 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
     e.preventDefault();
 
     const numericPrice = parseFloat(price);
-    const numericQty = parseFloat(quantity);
+    const numericQty = parseInt(quantity, 10);
 
     if (isNaN(numericPrice) || numericPrice <= 0) {
       setFeedback({ message: 'Enter a valid positive price.', isError: true });
       return;
     }
 
-    if (isNaN(numericQty) || numericQty <= 0) {
-      setFeedback({ message: 'Enter a valid positive quantity.', isError: true });
+    if (isNaN(numericQty) || numericQty < 1 || !Number.isInteger(numericQty)) {
+      setFeedback({ message: 'Enter a valid whole number of shares (minimum 1 unit).', isError: true });
       return;
     }
 
@@ -57,7 +57,7 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
       setFeedback({ message: res.message, isError: !res.success });
       // Clear feedback after 4 seconds
       setTimeout(() => setFeedback(null), 4000);
-    } catch (err) {
+    } catch {
       setFeedback({ message: 'Failed to submit order.', isError: true });
     } finally {
       setIsSubmitting(false);
@@ -65,7 +65,7 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
   };
 
   const numericPrice = parseFloat(price) || 0;
-  const numericQty = parseFloat(quantity) || 0;
+  const numericQty = parseInt(quantity, 10) || 0;
   const estimatedTotal = numericPrice * numericQty;
 
   return (
@@ -118,7 +118,7 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
         {/* Price Input & Quick Pickers */}
         <div className="space-y-1">
           <div className="flex justify-between items-center text-xs">
-            <label className="text-terminal-muted font-medium">Order Price (USDT)</label>
+            <label className="text-terminal-muted font-medium">Order Price (INR)</label>
             <div className="flex space-x-1 text-[10px]">
               <button
                 type="button"
@@ -150,25 +150,25 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
           <div className="relative">
             <input
               type="number"
-              step="0.01"
-              placeholder={snapshot.midPrice ? snapshot.midPrice.toFixed(2) : '64250.00'}
+              step="0.05"
+              placeholder={snapshot.midPrice ? snapshot.midPrice.toFixed(2) : '10500.00'}
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               className="w-full bg-terminal-card border border-terminal-border rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono tabular-nums"
               required
             />
             <span className="absolute right-3 top-1.5 text-[11px] text-terminal-muted pointer-events-none">
-              USDT
+              INR
             </span>
           </div>
         </div>
 
-        {/* Quantity Input & Percentage Buttons */}
+        {/* Quantity Input & Share Presets */}
         <div className="space-y-1">
           <div className="flex justify-between items-center text-xs">
-            <label className="text-terminal-muted font-medium">Quantity (BTC)</label>
+            <label className="text-terminal-muted font-medium">Quantity (Shares)</label>
             <div className="flex space-x-1 text-[10px]">
-              {['0.1', '0.25', '0.5', '1.0'].map((q) => (
+              {['1', '5', '10', '25', '50'].map((q) => (
                 <button
                   key={q}
                   type="button"
@@ -184,15 +184,21 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
           <div className="relative">
             <input
               type="number"
-              step="0.001"
-              placeholder="0.25"
+              step="1"
+              min="1"
+              placeholder="1"
               value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === '' || /^\d+$/.test(val)) {
+                  setQuantity(val);
+                }
+              }}
               className="w-full bg-terminal-card border border-terminal-border rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono tabular-nums"
               required
             />
             <span className="absolute right-3 top-1.5 text-[11px] text-terminal-muted pointer-events-none">
-              BTC
+              Shares
             </span>
           </div>
         </div>
@@ -201,8 +207,8 @@ export const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
         <div className="bg-terminal-card/60 border border-terminal-border/60 rounded px-2.5 py-1.5 flex justify-between items-center text-[11px] tabular-nums">
           <span className="text-terminal-muted">Estimated Value:</span>
           <span className="font-medium text-slate-200">
-            ${estimatedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
-            <span className="text-terminal-muted text-[10px]">USDT</span>
+            ₹{estimatedTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+            <span className="text-terminal-muted text-[10px]">INR</span>
           </span>
         </div>
 

@@ -106,7 +106,7 @@ export function App() {
 
         <div className="flex items-center space-x-3">
           <span className="text-slate-400">
-            SPREAD: <span className="text-white">${snapshot.spread.toFixed(2)}</span>
+            SPREAD: <span className="text-white">₹{snapshot.spread.toFixed(2)}</span>
           </span>
           <span className="text-slate-500">|</span>
           <span className="text-slate-400">

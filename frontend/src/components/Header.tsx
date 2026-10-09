@@ -46,9 +46,9 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         <div className="flex items-center space-x-2 pl-2">
-          <span className="text-base font-bold text-white tracking-wide">BTC/USDT</span>
+          <span className="text-base font-bold text-white tracking-wide">NVDA/INR</span>
           <span className="text-xs text-terminal-muted bg-terminal-card px-1.5 py-0.5 rounded border border-terminal-border">
-            SPOT
+            EQUITY
           </span>
         </div>
       </div>
@@ -62,7 +62,7 @@ export const Header: React.FC<HeaderProps> = ({
               isPriceUp ? 'text-bid' : 'text-ask'
             }`}
           >
-            ${snapshot.lastPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            ₹{snapshot.lastPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
 
@@ -76,21 +76,21 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="hidden md:flex flex-col">
           <span className="text-[10px] text-terminal-muted uppercase">24h High</span>
           <span className="text-slate-300 font-medium">
-            ${snapshot.high24h.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            ₹{snapshot.high24h.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </span>
         </div>
 
         <div className="hidden md:flex flex-col">
           <span className="text-[10px] text-terminal-muted uppercase">24h Low</span>
           <span className="text-slate-300 font-medium">
-            ${snapshot.low24h.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            ₹{snapshot.low24h.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </span>
         </div>
 
         <div className="hidden lg:flex flex-col">
-          <span className="text-[10px] text-terminal-muted uppercase">24h Vol (BTC)</span>
+          <span className="text-[10px] text-terminal-muted uppercase">24h Vol (Shares)</span>
           <span className="text-slate-300 font-medium">
-            {snapshot.volume24h.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {snapshot.volume24h.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </span>
         </div>
       </div>

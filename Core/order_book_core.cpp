@@ -1,6 +1,7 @@
 #pragma once
+
 #include "order.cpp"
-#include "../types.cpp"
+#include "types.cpp"
 #include "mempool.cpp"
 
 struct ExecResult {
@@ -9,7 +10,7 @@ struct ExecResult {
 };
 
 class BookCore {
-private:
+
     struct IdEntry {
         char side;
         Tick price;
@@ -64,11 +65,11 @@ private:
     template<bool isBid>
     ExecResult submit_limit_side(const NewOrder& new_order) {
         ExecResult res{0, new_order.qty};
-        Tick opp_best = isBid ? asks_.best_ask() : bids_.best_bid();
-        bool crosses = isBid ? new_order.price >= opp_best : new_order.price <= opp_best;
+        const Tick opp_best = isBid ? asks_.best_ask() : bids_.best_bid();
+        const bool crosses = isBid ? new_order.price >= opp_best : new_order.price <= opp_best;
 
         if (crosses) {
-            Quantity matched = match_against_side<isBid>(new_order.qty, new_order.price);
+            const Quantity matched = match_against_side<isBid>(new_order.qty, new_order.price);
             res.filled += matched;
             res.remaining -= matched;
         }
@@ -82,7 +83,7 @@ private:
             node.id = new_order.id;
             node.side = new_order.side;
             node.price = new_order.price;
-            node.qty = new_order.qty;
+            node.qty = res.remaining;
 
             enqueue(L, h);
             orders_[new_order.id] = IdEntry{isBid ? 'B' : 'S', new_order.price, h};
@@ -96,13 +97,14 @@ private:
 
         return res;
     }
+
     template<bool isBid>
     Quantity match_against_side(Quantity qty, const Tick px_limit) {
         Quantity total_matched = 0;
         IPriceLevels &opp_side = isBid ? asks_ : bids_;
         while (qty > 0) {
-            Tick best_px = isBid ? asks_.best_ask() : bids_.best_bid();
-            bool can_match = isBid ? (px_limit >= best_px) : (best_px >= px_limit);
+            const Tick best_px = isBid ? asks_.best_ask() : bids_.best_bid();
+            const bool can_match = isBid ? (px_limit >= best_px) : (best_px >= px_limit);
             if (!can_match) break;
 
             LevelFIFO& L = opp_side.get_level(best_px);
@@ -113,47 +115,49 @@ private:
             Handle curr_idx = L.head;
             while (curr_idx != NIL && qty > 0) {
                 OrderNode& curr = order_pool_[curr_idx];
-                Handle next_idx = curr.next;
+                const Handle next_idx = curr.next;
 
-                Quantity fill_qty = std::min(qty, curr.qty);
+                const Quantity fill_qty = std::min(qty, curr.qty);
                 qty -= fill_qty;
                 L.qty -= fill_qty;
                 curr.qty -= fill_qty;
-                total_matched += curr.qty;
+                total_matched += fill_qty;
 
                 if (curr.qty == 0) {
                     erase(L, curr_idx);
                     free_node(&curr);
                     orders_.erase(curr.id);
                 }
+
+                curr_idx = next_idx;
             }
             if (L.head == NIL) {
                 refresh_best_after_depletion(isBid ? 'S' : 'B');
             }
+
         }
 
         return total_matched;
     }
-    void refresh_best_after_depletion(Side side) {
+
+    void refresh_best_after_depletion(const Side side) {
         if (side == 'B') {
-            bids_.find_best_ask();
+            bids_.find_best_bid();
         } else {
             asks_.find_best_ask();
         }
     }
 public:
-    BookCore(IPriceLevels& bids, IPriceLevels& asks) : bids_(bids), asks_(asks) {
-        order_pool_.alloc();
-    }
+    BookCore(IPriceLevels& bids, IPriceLevels& asks) : bids_(bids), asks_(asks) {}
 
     bool empty(const Side side) const {
         return (side == 'B') ?
         bids_.best_bid() == std::numeric_limits<Tick>::min() :
-        asks_.best_bid() == std::numeric_limits<Tick>::min();
+        asks_.best_ask() == std::numeric_limits<Tick>::max();
     }
 
     bool cancel(OrderId id) {
-        auto it = orders_.find(id);
+        const auto it = orders_.find(id);
         if (it == orders_.end()) return false;
 
         const IdEntry& entry = it->second;
@@ -165,7 +169,7 @@ public:
         orders_.erase(it);
 
         if (L.head == NIL) {
-            refresh_best_after_depletion('B');
+            refresh_best_after_depletion(entry.side);
         }
 
         return true;

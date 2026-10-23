@@ -1,9 +1,10 @@
 #pragma once
+
 #include <cstdint>
 #include <limits>
 #include <unordered_map>
 #include <vector>
-#include "../types.cpp"
+#include "types.cpp"
 
 enum OrderType {
   Limit,
@@ -13,20 +14,21 @@ enum OrderType {
 struct OrderNode
 {
 
-  OrderType orderType;
-  OrderId id;
-  char side;
-  Price price;
-  Quantity qty;
+  OrderType orderType{};
+  OrderId id{};
+  char side{};
+  Price price{};
+  Quantity qty{};
 
   Handle next {NIL};
   Handle prev {NIL};
 
   OrderNode() = default;
 
-  OrderNode(OrderType order_type, char side, int32_t price, int32_t quantity)
+  OrderNode(const OrderId id, const OrderType order_type, const char side, const int32_t price, const int32_t quantity)
     : orderType(order_type),
-      side (side),
+      id(id),
+      side(side),
       price(price),
       qty(quantity) {
   }
@@ -79,8 +81,7 @@ public:
     return levels_[idx(tx)];
   }
   bool has_level(const Tick tx) override {
-    auto &l = levels_[idx(tx)];
-    // Updated null check to use Handle NIL
+    const auto &l = levels_[idx(tx)];
     return l.head != NIL;
   }
   LevelFIFO* best_level_ptr(const Side S) const {
@@ -103,7 +104,7 @@ public:
     int i = best_ask_ == std::numeric_limits<Tick>::max() ? idx(band_.min_tick) : idx(best_ask_);
     for (; i <= idx(band_.max_tick); i++) {
       if (levels_[i].head != NIL) {
-        best_bid_ = i + band_.min_tick;
+        best_ask_ = i + band_.min_tick;
         return;
       }
     }
@@ -112,9 +113,9 @@ public:
 
   void find_best_bid() override {
     int i = best_bid_ == std::numeric_limits<Tick>::min() ? idx(band_.max_tick) : idx(best_bid_);
-    for (; i >= idx(band_.max_tick); i--) {
+    for (; i >= idx(band_.min_tick); i--) {
       if (levels_[i].head != NIL) {
-        best_ask_ = i + band_.min_tick;
+        best_bid_ = i + band_.min_tick;
         return;
       }
     }
@@ -168,17 +169,19 @@ public:
   }
 
   void find_best_bid() override {
+    best_bid_ = std::numeric_limits<Tick>::min();
     for (auto & it : map_) {
       if (it.second.head != NIL) {
-        best_bid_ = std::max(best_bid_, it.second.price);
+        best_bid_ = std::max(best_bid_, it.first);
       }
     }
   }
 
   void find_best_ask() override {
+    best_ask_ = std::numeric_limits<Tick>::max();
     for (auto & it : map_) {
       if (it.second.head != NIL) {
-        best_ask_ = std::min(best_ask_, it.second.price);
+        best_ask_ = std::min(best_ask_, it.first);
       }
     }
   }

@@ -1,4 +1,5 @@
 #pragma once
+
 #include <cstdint>
 using OrderId = int64_t;
 using Quantity = int32_t;

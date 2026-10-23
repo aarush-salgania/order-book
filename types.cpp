@@ -25,4 +25,4 @@ struct NewOrder {
     Side side;
     Tick price;
     UserId user;
-}
+};

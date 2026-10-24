@@ -54,8 +54,8 @@ public:
   virtual void set_best_ask(Tick tx) = 0;
   virtual void set_best_bid(Tick tx) = 0;
 
-  virtual void find_best_ask() = 0;
-  virtual void find_best_bid() = 0;
+  virtual int find_best_ask() = 0;
+  virtual int find_best_bid() = 0;
 };
 
 class PriceLevelContiguous : public IPriceLevels {
@@ -100,26 +100,24 @@ public:
     best_ask_ptr_ = tx == std::numeric_limits<Tick>::max() ? nullptr : &levels_[idx(tx)];
   }
 
-  void find_best_ask() override {
+  int find_best_ask() override {
     int i = best_ask_ == std::numeric_limits<Tick>::max() ? idx(band_.min_tick) : idx(best_ask_);
     for (; i <= idx(band_.max_tick); i++) {
       if (levels_[i].head != NIL) {
-        best_ask_ = i + band_.min_tick;
-        return;
+        return i + band_.min_tick;
       }
     }
-    best_ask_ = std::numeric_limits<Tick>::max();
+    return std::numeric_limits<Tick>::max();
   }
 
-  void find_best_bid() override {
+  int find_best_bid() override {
     int i = best_bid_ == std::numeric_limits<Tick>::min() ? idx(band_.max_tick) : idx(best_bid_);
     for (; i >= idx(band_.min_tick); i--) {
       if (levels_[i].head != NIL) {
-        best_bid_ = i + band_.min_tick;
-        return;
+        return i + band_.min_tick;
       }
     }
-    best_bid_ = std::numeric_limits<Tick>::min();
+    return std::numeric_limits<Tick>::min();
   }
 
 };
@@ -168,21 +166,23 @@ public:
     best_bid_ptr_ = &map_[tx];
   }
 
-  void find_best_bid() override {
+  int find_best_bid() override {
     best_bid_ = std::numeric_limits<Tick>::min();
     for (auto & it : map_) {
       if (it.second.head != NIL) {
         best_bid_ = std::max(best_bid_, it.first);
       }
     }
+    return best_bid_;
   }
 
-  void find_best_ask() override {
+  int find_best_ask() override {
     best_ask_ = std::numeric_limits<Tick>::max();
     for (auto & it : map_) {
       if (it.second.head != NIL) {
         best_ask_ = std::min(best_ask_, it.first);
       }
     }
+    return best_ask_;
   }
 };

@@ -64,7 +64,7 @@ class BookCore {
 
     template<bool isBid>
     ExecResult submit_limit_side(const NewOrder& new_order) {
-        ExecResult res{0, new_order.qty};
+        ExecResult res{.filled = 0, .remaining = new_order.qty};
         const Tick opp_best = isBid ? asks_.best_ask() : bids_.best_bid();
         const bool crosses = isBid ? new_order.price >= opp_best : new_order.price <= opp_best;
 
@@ -78,7 +78,11 @@ class BookCore {
             IPriceLevels& same_side = isBid ? bids_ : asks_;
             LevelFIFO& L = same_side.get_level(new_order.price);
 
-            Handle h = order_pool_.alloc();
+            const Handle h = order_pool_.alloc();
+            if (h == NIL) {
+                return res;
+            }
+
             OrderNode& node = order_pool_[h];
             node.id = new_order.id;
             node.side = new_order.side;
@@ -124,9 +128,9 @@ class BookCore {
                 total_matched += fill_qty;
 
                 if (curr.qty == 0) {
-                    erase(L, curr_idx);
-                    free_node(&curr);
                     orders_.erase(curr.id);
+                    erase(L, curr_idx);
+                    free_node(curr_idx);
                 }
 
                 curr_idx = next_idx;
@@ -140,15 +144,17 @@ class BookCore {
         return total_matched;
     }
 
-    void refresh_best_after_depletion(const Side side) {
+    void refresh_best_after_depletion(const Side side) const {
         if (side == 'B') {
-            bids_.find_best_bid();
+            const int tx = bids_.find_best_bid();
+            bids_.set_best_bid(tx);
         } else {
-            asks_.find_best_ask();
+            const int tx = asks_.find_best_ask();
+            asks_.set_best_ask(tx);
         }
     }
 public:
-    BookCore(IPriceLevels& bids, IPriceLevels& asks) : bids_(bids), asks_(asks) {}
+    BookCore(IPriceLevels& bids, IPriceLevels& asks) : asks_(asks), bids_(bids) {}
 
     bool empty(const Side side) const {
         return (side == 'B') ?
@@ -156,21 +162,23 @@ public:
         asks_.best_ask() == std::numeric_limits<Tick>::max();
     }
 
-    bool cancel(OrderId id) {
+    bool cancel(const OrderId id) {
         const auto it = orders_.find(id);
         if (it == orders_.end()) return false;
 
-        const IdEntry& entry = it->second;
+        const IdEntry entry = it->second;
         IPriceLevels& side = entry.side == 'B' ? bids_ : asks_;
         LevelFIFO& L = side.get_level(entry.price);
 
-        erase(L, entry.idx);
-        free_node(entry.idx);
-        orders_.erase(it);
 
-        if (L.head == NIL) {
+        erase(L, entry.idx);
+        const bool check_empty = L.head == NIL;
+        if (check_empty) {
             refresh_best_after_depletion(entry.side);
         }
+
+        free_node(entry.idx);
+        orders_.erase(it);
 
         return true;
     }

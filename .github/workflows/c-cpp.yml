@@ -1,0 +1,21 @@
+name: C/C++ CI
+
+on:
+  workflow_dispatch: 
+
+jobs:
+  build:
+
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="/O2 /Oi /Ot /W4 /permissive- /D_CRT_SECURE_NO_WARNINGS"
+
+    - name: Build Project
+      run: cmake --build build --config Release
+
+    - name: Run Engine
+      run: .\build\Release\order_book.exe

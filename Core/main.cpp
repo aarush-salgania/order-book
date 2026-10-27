@@ -1,8 +1,7 @@
-//
-// Created by Raghav on 15/09/26.
-//
-#include <iostream>
+#include "lob_test_suite.cpp"
 
 int main() {
-    std::cout << "This file was Run" << std::endl;
+  lob_test::LOBTestSuite tests;
+
+  return tests.success() ? 0 : 1;
 }

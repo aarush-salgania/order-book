@@ -6,5 +6,6 @@
 
 int main() {
     TestSuite test_suite;
+
     return 0;
 }

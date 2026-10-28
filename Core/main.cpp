@@ -1,7 +1,10 @@
-#include "lob_test_suite.cpp"
+//
+// Created by Raghav on 15/09/26.
+//
+#include <iostream>
+#include "Tests/test_suite.cpp"
 
 int main() {
-  lob_test::LOBTestSuite tests;
-
-  return tests.success() ? 0 : 1;
+    TestSuite test_suite;
+    return 0;
 }

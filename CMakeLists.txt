@@ -13,5 +13,5 @@ add_executable(order_book
         Core/types.cpp
         Core/order_book_core.cpp
         Core/mempool.cpp
-        Core/test_suite.cpp
+        Tests/test_suite.cpp
 )

@@ -15,3 +15,8 @@ add_executable(order_book
         Core/mempool.cpp
         Tests/test_suite.cpp
 )
+# Interactive engine used by the Node backend (reads orders from stdin)
+add_executable(order_book_engine Core/engine_a_main.cpp)
+if (MINGW)
+    target_link_options(order_book_engine PRIVATE -static)
+endif()

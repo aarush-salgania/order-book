@@ -18,8 +18,10 @@ if not exist "%BENCH_EXE%" set "BENCH_EXE=%BUILD_DIR%\Release\ob_bench.exe"
 set "LATENCY_EXE=%BUILD_DIR%\ob_latency.exe"
 if not exist "%LATENCY_EXE%" set "LATENCY_EXE=%BUILD_DIR%\Release\ob_latency.exe"
 
-for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /value') do set dt=%%I
-set "DATETIME=%dt:~0,8%_%dt:~8,6%"
+for /f %%I in ('powershell -NoProfile -Command "Get-Date -Format yyyyMMdd_HHmmss"') do set "DATETIME=%%I"
+if "%DATETIME%"=="" (
+  for /f %%I in ('python -c "import datetime; print(datetime.datetime.now().strftime('%%Y%%m%%d_%%H%%M%%S'))"') do set "DATETIME=%%I"
+)
 
 for /f %%I in ('git rev-parse --short HEAD 2^>nul') do set "COMMIT=%%I"
 if "%COMMIT%"=="" set "COMMIT=unknown"

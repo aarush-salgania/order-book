@@ -63,13 +63,16 @@ int main() {
 
             const double price = std::stod(price_str);
             const double qty_d = std::stod(qty_str);
-            if (price <= 0 || price * TICKS_PER_RUPEE > band.max_tick || qty_d < 1) {
-                std::cerr << "[engine] ignored (out of range): " << line << std::endl;
+            const Tick tick = static_cast<Tick>(std::llround(price * TICKS_PER_RUPEE));
+            if (tick < 1 || tick > band.max_tick) {
+                std::cerr << "[engine] ignored (bad price): " << line << std::endl;
                 continue;
             }
-
-            const Tick tick = static_cast<Tick>(std::llround(price * TICKS_PER_RUPEE));
-            const Quantity qty = static_cast<Quantity>(std::llround(qty_d));
+            if (qty_d < 1 || qty_d > 1000000000.0 || qty_d != std::floor(qty_d)) {
+                std::cerr << "[engine] ignored (quantity must be a whole number): " << line << std::endl;
+                continue;
+            }
+            const Quantity qty = static_cast<Quantity>(qty_d);
 
             // Best price on the opposite side BEFORE matching = where the trade happens.
             const Tick best_opp = (side == 'B') ? asks.best_ask() : bids.best_bid();

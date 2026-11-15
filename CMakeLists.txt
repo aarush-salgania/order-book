@@ -20,3 +20,7 @@ add_executable(order_book_engine Core/engine_a_main.cpp)
 if (MINGW)
     target_link_options(order_book_engine PRIVATE -static)
 endif()
+set_target_properties(order_book_engine PROPERTIES
+    OUTPUT_NAME order_book
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/backend)
+    

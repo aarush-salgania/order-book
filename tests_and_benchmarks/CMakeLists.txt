@@ -20,6 +20,7 @@ add_library(ob_common INTERFACE)
 target_include_directories(ob_common INTERFACE
   ${CMAKE_CURRENT_SOURCE_DIR}/harness
   ${CMAKE_CURRENT_SOURCE_DIR}/benchmarks
+  ${CMAKE_CURRENT_SOURCE_DIR}/../Core
   ${CMAKE_CURRENT_SOURCE_DIR}/../core
   ${CMAKE_CURRENT_SOURCE_DIR}/..
 )

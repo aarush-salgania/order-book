@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 4.3)
+cmake_minimum_required(VERSION 3.20)
 project(order_book)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -15,3 +15,12 @@ add_executable(order_book
         Core/mempool.cpp
         Tests/test_suite.cpp
 )
+# Interactive engine used by the Node backend (reads orders from stdin)
+add_executable(order_book_engine Core/engine_a_main.cpp)
+if (MINGW)
+    target_link_options(order_book_engine PRIVATE -static)
+endif()
+set_target_properties(order_book_engine PROPERTIES
+    OUTPUT_NAME order_book
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/backend)
+    

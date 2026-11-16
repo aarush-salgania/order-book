@@ -6,6 +6,8 @@ import type {
   Trade,
   TradeListener,
   ConfigListener,
+  StatsListener,
+  EngineStats,
   ConnectionListener,
   ConnectionStatus,
   SimulationConfig,
@@ -49,6 +51,14 @@ export class BackendOrderBookService implements IOrderBookService {
   private tradeListeners: Set<TradeListener> = new Set();
   private configListeners: Set<ConfigListener> = new Set();
   private statusListeners: Set<ConnectionListener> = new Set();
+  private statsListeners: Set<StatsListener> = new Set();
+
+  private currentStats: EngineStats = {
+    latencyNs: 142,
+    poolUsed: 0,
+    poolCap: 100000,
+    poolAllocNs: 2.3,
+  };
 
   private simInterval: ReturnType<typeof setInterval> | null = null;
   private readonly depthLevels = 18;
@@ -159,6 +169,23 @@ export class BackendOrderBookService implements IOrderBookService {
 
     console.log(`[Backend WS Message Received]:`, trimmed);
 
+    // 0. Check if backend sent ENGINE_STATS: ...
+    if (trimmed.startsWith('ENGINE_STATS:')) {
+      try {
+        const payload = trimmed.substring('ENGINE_STATS:'.length).trim();
+        const obj = JSON.parse(payload);
+        this.notifyStatsListeners({
+          latencyNs: Number(obj.latency_ns) || this.currentStats.latencyNs,
+          poolUsed: obj.pool_used !== undefined ? Number(obj.pool_used) : this.currentStats.poolUsed,
+          poolCap: Number(obj.pool_cap) || this.currentStats.poolCap,
+          poolAllocNs: Number(obj.pool_alloc_ns) || this.currentStats.poolAllocNs,
+        });
+      } catch (e) {
+        console.warn('Failed to parse ENGINE_STATS:', e);
+      }
+      return;
+    }
+
     // 1. Check if backend sent TRADE_EXECUTED: ... (from dummy.cpp or similar)
     if (trimmed.startsWith('TRADE_EXECUTED:')) {
       const payload = trimmed.substring('TRADE_EXECUTED:'.length).trim();
@@ -176,6 +203,20 @@ export class BackendOrderBookService implements IOrderBookService {
             price: Number(parsed.price) || this.lastPrice,
             quantity: Number(parsed.quantity) || 0.1,
             side: (parsed.side === 'sell' ? 'sell' : 'buy') as OrderSide,
+            latencyNs: parsed.latency_ns !== undefined ? Number(parsed.latency_ns) : undefined,
+            poolUsed: parsed.pool_used !== undefined ? Number(parsed.pool_used) : undefined,
+            poolCap: parsed.pool_cap !== undefined ? Number(parsed.pool_cap) : undefined,
+            poolAllocNs: parsed.pool_alloc_ns !== undefined ? Number(parsed.pool_alloc_ns) : undefined,
+          });
+          return;
+        }
+
+        if (parsed.type === 'stats' || parsed.type === 'engine_stats') {
+          this.notifyStatsListeners({
+            latencyNs: Number(parsed.latency_ns) || this.currentStats.latencyNs,
+            poolUsed: parsed.pool_used !== undefined ? Number(parsed.pool_used) : this.currentStats.poolUsed,
+            poolCap: Number(parsed.pool_cap) || this.currentStats.poolCap,
+            poolAllocNs: Number(parsed.pool_alloc_ns) || this.currentStats.poolAllocNs,
           });
           return;
         }
@@ -198,6 +239,10 @@ export class BackendOrderBookService implements IOrderBookService {
             price: Number(parsed.price) || this.lastPrice,
             quantity: Number(parsed.quantity) || 0.1,
             side: parsed.side === 'sell' ? 'sell' : 'buy',
+            latencyNs: parsed.latency_ns !== undefined ? Number(parsed.latency_ns) : undefined,
+            poolUsed: parsed.pool_used !== undefined ? Number(parsed.pool_used) : undefined,
+            poolCap: parsed.pool_cap !== undefined ? Number(parsed.pool_cap) : undefined,
+            poolAllocNs: parsed.pool_alloc_ns !== undefined ? Number(parsed.pool_alloc_ns) : undefined,
           });
           return;
         }
@@ -222,7 +267,29 @@ export class BackendOrderBookService implements IOrderBookService {
         const price = Number(obj.price) || this.lastPrice;
         const qty = Number(obj.quantity || obj.qty) || 0.25;
         const side: OrderSide = obj.side === 'sell' ? 'sell' : 'buy';
-        this.applyTrade({ price, quantity: qty, side });
+        const latencyNs = obj.latency_ns !== undefined ? Number(obj.latency_ns) : undefined;
+        const poolUsed = obj.pool_used !== undefined ? Number(obj.pool_used) : undefined;
+        const poolCap = obj.pool_cap !== undefined ? Number(obj.pool_cap) : undefined;
+        const poolAllocNs = obj.pool_alloc_ns !== undefined ? Number(obj.pool_alloc_ns) : undefined;
+
+        if (latencyNs !== undefined || poolUsed !== undefined) {
+          this.notifyStatsListeners({
+            latencyNs: latencyNs ?? this.currentStats.latencyNs,
+            poolUsed: poolUsed ?? this.currentStats.poolUsed,
+            poolCap: poolCap ?? this.currentStats.poolCap,
+            poolAllocNs: poolAllocNs ?? this.currentStats.poolAllocNs,
+          });
+        }
+
+        this.applyTrade({
+          price,
+          quantity: qty,
+          side,
+          latencyNs,
+          poolUsed,
+          poolCap,
+          poolAllocNs,
+        });
         return;
       }
     } catch {
@@ -250,7 +317,15 @@ export class BackendOrderBookService implements IOrderBookService {
     });
   }
 
-  private applyTrade(details: { price: number; quantity: number; side: OrderSide }): void {
+  private applyTrade(details: {
+    price: number;
+    quantity: number;
+    side: OrderSide;
+    latencyNs?: number;
+    poolUsed?: number;
+    poolCap?: number;
+    poolAllocNs?: number;
+  }): void {
     const price = +details.price.toFixed(2);
     const quantity = Math.max(1, Math.round(details.quantity));
     const side = details.side;
@@ -282,6 +357,10 @@ export class BackendOrderBookService implements IOrderBookService {
       quantity,
       side,
       timestamp: Date.now(),
+      latencyNs: details.latencyNs,
+      poolUsed: details.poolUsed,
+      poolCap: details.poolCap,
+      poolAllocNs: details.poolAllocNs,
     };
 
     this.recentTrades = [trade, ...this.recentTrades.slice(0, 49)];
@@ -521,6 +600,31 @@ export class BackendOrderBookService implements IOrderBookService {
     this.notifyBookListeners();
   }
 
+  public clearBook(): void {
+    this.bids.clear();
+    this.asks.clear();
+    this.recentTrades = [];
+    this.lastPrice = 10520.0;
+    this.volume24h = 0;
+    this.currentStats = {
+      latencyNs: 0,
+      poolUsed: 0,
+      poolCap: 100000,
+      poolAllocNs: 2.3,
+    };
+    this.notifyBookListeners();
+    this.notifyStatsListeners(this.currentStats);
+
+    // Send clear signal to C++ engine
+    try {
+      fetch(`${this.httpUrl}/api/order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order: '{"action":"clear"}' }),
+      }).catch(() => {});
+    } catch {}
+  }
+
   // ============================================================================
   // Subscription Listeners
   // ============================================================================
@@ -545,6 +649,21 @@ export class BackendOrderBookService implements IOrderBookService {
     this.statusListeners.add(listener);
     listener(this.status);
     return () => this.statusListeners.delete(listener);
+  }
+
+  public subscribeStats(listener: StatsListener): () => void {
+    this.statsListeners.add(listener);
+    listener(this.currentStats);
+    return () => this.statsListeners.delete(listener);
+  }
+
+  public getStats(): EngineStats {
+    return { ...this.currentStats };
+  }
+
+  private notifyStatsListeners(stats: EngineStats): void {
+    this.currentStats = { ...stats };
+    this.statsListeners.forEach((l) => l(this.currentStats));
   }
 
   private notifyBookListeners(): void {

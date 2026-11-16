@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type {
   OrderBookSnapshot,
   Trade,
+  EngineStats,
   SimulationConfig,
   ManualOrderPayload,
   IOrderBookService,
@@ -15,6 +16,7 @@ export interface UseOrderBookReturn {
   bids: OrderBookSnapshot['bids'];
   asks: OrderBookSnapshot['asks'];
   recentTrades: Trade[];
+  engineStats: EngineStats;
   config: SimulationConfig;
   simulationStatus: 'running' | 'paused';
   connectionStatus: ConnectionStatus;
@@ -24,6 +26,7 @@ export interface UseOrderBookReturn {
   updateConfig: (cfg: Partial<SimulationConfig>) => void;
   sendOrder: (order: ManualOrderPayload) => Promise<{ success: boolean; message: string }>;
   resetBook: () => void;
+  clearBook: () => void;
   service: IOrderBookService;
 }
 
@@ -43,6 +46,11 @@ export function useOrderBook(
   const [snapshot, setSnapshot] = useState<OrderBookSnapshot>(() => activeService.getSnapshot());
   const [recentTrades, setRecentTrades] = useState<Trade[]>(() => activeService.getRecentTrades());
   const [config, setConfig] = useState<SimulationConfig>(() => activeService.getConfig());
+  const [engineStats, setEngineStats] = useState<EngineStats>(() => {
+    return activeService.getStats
+      ? activeService.getStats()
+      : { latencyNs: 142, poolUsed: 0, poolCap: 100000, poolAllocNs: 2.3 };
+  });
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(() => {
     return activeService.getStatus ? activeService.getStatus() : 'connected';
   });
@@ -63,6 +71,9 @@ export function useOrderBook(
     setSnapshot(activeService.getSnapshot());
     setRecentTrades(activeService.getRecentTrades());
     setConfig(activeService.getConfig());
+    if (activeService.getStats) {
+      setEngineStats(activeService.getStats());
+    }
     if (activeService.getStatus) {
       setConnectionStatus(activeService.getStatus());
     } else {
@@ -81,6 +92,12 @@ export function useOrderBook(
       setConfig(newConfig);
     });
 
+    const unsubStats = activeService.subscribeStats
+      ? activeService.subscribeStats((newStats) => {
+          setEngineStats(newStats);
+        })
+      : () => {};
+
     const unsubStatus = activeService.subscribeStatus
       ? activeService.subscribeStatus((newStatus) => {
           setConnectionStatus(newStatus);
@@ -91,6 +108,7 @@ export function useOrderBook(
       unsubBook();
       unsubTrades();
       unsubConfig();
+      unsubStats();
       unsubStatus();
     };
   }, [activeService]);
@@ -113,6 +131,14 @@ export function useOrderBook(
     activeService.resetBook();
   }, [activeService]);
 
+  const clearBook = useCallback(() => {
+    if (activeService.clearBook) {
+      activeService.clearBook();
+    } else {
+      activeService.resetBook();
+    }
+  }, [activeService]);
+
   const reconnect = useCallback(() => {
     if (activeService.reconnect) {
       activeService.reconnect();
@@ -124,6 +150,7 @@ export function useOrderBook(
     bids: snapshot.bids,
     asks: snapshot.asks,
     recentTrades,
+    engineStats,
     config,
     simulationStatus: config.isRunning ? 'running' : 'paused',
     connectionStatus,
@@ -133,6 +160,7 @@ export function useOrderBook(
     updateConfig,
     sendOrder,
     resetBook,
+    clearBook,
     service: activeService,
   };
 }

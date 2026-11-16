@@ -9,6 +9,7 @@ export function App() {
   const {
     snapshot,
     recentTrades,
+    engineStats,
     config,
     connectionStatus,
     mode,
@@ -17,6 +18,7 @@ export function App() {
     updateConfig,
     sendOrder,
     resetBook,
+    clearBook,
   } = useOrderBook();
 
   return (
@@ -27,6 +29,7 @@ export function App() {
         config={config}
         connectionStatus={connectionStatus}
         mode={mode}
+        engineStats={engineStats}
         onReconnect={reconnect}
       />
 
@@ -43,6 +46,7 @@ export function App() {
               onReconnect={reconnect}
               onUpdateConfig={updateConfig}
               onResetBook={resetBook}
+              onClearData={clearBook}
             />
             <ManualOrderForm
               snapshot={snapshot}

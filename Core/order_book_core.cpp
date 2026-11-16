@@ -145,6 +145,14 @@ class BookCore {
     }
 
     void refresh_best_after_depletion(const Side side) const {
+        if (orders_.empty()) {
+            if (side == 'B') {
+                bids_.set_best_bid(std::numeric_limits<Tick>::min());
+            } else {
+                asks_.set_best_ask(std::numeric_limits<Tick>::max());
+            }
+            return;
+        }
         if (side == 'B') {
             const int tx = bids_.find_best_bid();
             bids_.set_best_bid(tx);
@@ -188,5 +196,13 @@ public:
             return submit_limit_side<true>(new_order);
         }
         return submit_limit_side<false>(new_order);
+    }
+
+    std::size_t pool_in_use() const noexcept {
+        return order_pool_.in_use();
+    }
+
+    std::size_t pool_capacity() const noexcept {
+        return order_pool_.capacity();
     }
 };

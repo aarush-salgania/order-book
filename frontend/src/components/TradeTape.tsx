@@ -13,11 +13,18 @@ function formatTime(timestamp: number): string {
   return `${hours}:${minutes}:${seconds}`;
 }
 
+function formatLatency(ns?: number): string {
+  if (ns == null || ns === 0) return '-';
+  if (ns < 1000) return `${ns} ns`;
+  if (ns < 1000000) return `${(ns / 1000).toFixed(1)} µs`;
+  return `${(ns / 1000000).toFixed(2)} ms`;
+}
+
 const TradeRow = memo(({ trade }: { trade: Trade }) => {
   const isBuy = trade.side === 'buy';
 
   return (
-    <div className="grid grid-cols-4 px-3 py-1.5 text-xs font-mono items-center hover:bg-slate-800/40 transition">
+    <div className="grid grid-cols-5 px-3 py-1.5 text-xs font-mono items-center hover:bg-slate-800/40 transition">
       <span className="text-slate-400 text-[11px]">
         {formatTime(trade.timestamp)}
       </span>
@@ -38,6 +45,10 @@ const TradeRow = memo(({ trade }: { trade: Trade }) => {
 
       <span className="text-slate-300 text-right">
         {Math.round(trade.quantity)}
+      </span>
+
+      <span className="text-slate-400 text-[11px] text-right font-mono">
+        {formatLatency(trade.latencyNs)}
       </span>
     </div>
   );
@@ -63,11 +74,12 @@ export const TradeTape: React.FC<TradeTapeProps> = ({ trades }) => {
       </div>
 
       {/* Column Headers */}
-      <div className="grid grid-cols-4 px-3 py-1.5 border-b border-slate-800 text-[11px] font-medium text-slate-400 bg-slate-800/40">
+      <div className="grid grid-cols-5 px-3 py-1.5 border-b border-slate-800 text-[11px] font-medium text-slate-400 bg-slate-800/40">
         <span>Time</span>
         <span>Side</span>
         <span className="text-right">Price (₹)</span>
         <span className="text-right">Shares</span>
+        <span className="text-right">Latency</span>
       </div>
 
       {/* Scrolling Trade Stream */}

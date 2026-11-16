@@ -6,6 +6,8 @@ import type {
   Trade,
   TradeListener,
   ConfigListener,
+  StatsListener,
+  EngineStats,
   SimulationConfig,
   ManualOrderPayload,
   OrderSide,
@@ -44,6 +46,14 @@ export class MockDataService implements IOrderBookService {
   private bookListeners: Set<OrderBookListener> = new Set();
   private tradeListeners: Set<TradeListener> = new Set();
   private configListeners: Set<ConfigListener> = new Set();
+  private statsListeners: Set<StatsListener> = new Set();
+
+  private stats: EngineStats = {
+    latencyNs: 145,
+    poolUsed: 18,
+    poolCap: 100000,
+    poolAllocNs: 2.3,
+  };
 
   private intervalTimer: ReturnType<typeof setInterval> | null = null;
   private readonly depthLevels = 18;
@@ -191,13 +201,28 @@ export class MockDataService implements IOrderBookService {
     this.lastPrice = price;
     this.volume24h += quantity;
 
+    const latencyNs = Math.floor(130 + Math.random() * 35);
+    const poolUsed = Math.floor(14 + Math.random() * 12);
+
     const trade: Trade = {
       id: `tr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       price,
       quantity,
       side,
       timestamp: Date.now(),
+      latencyNs,
+      poolUsed,
+      poolCap: 100000,
+      poolAllocNs: 2.3,
     };
+
+    this.stats = {
+      latencyNs,
+      poolUsed,
+      poolCap: 100000,
+      poolAllocNs: 2.3,
+    };
+    this.notifyStatsListeners(this.stats);
 
     // Keep rolling buffer of latest 50 trades
     this.recentTrades = [trade, ...this.recentTrades.slice(0, 49)];
@@ -325,6 +350,21 @@ export class MockDataService implements IOrderBookService {
     this.notifyBookListeners();
   }
 
+  public clearBook(): void {
+    this.bids.clear();
+    this.asks.clear();
+    this.recentTrades = [];
+    this.volume24h = 0;
+    this.stats = {
+      latencyNs: 0,
+      poolUsed: 0,
+      poolCap: 100000,
+      poolAllocNs: 2.3,
+    };
+    this.notifyBookListeners();
+    this.notifyStatsListeners(this.stats);
+  }
+
   // ============================================================================
   // Subscription Listeners (Observer Pattern)
   // ============================================================================
@@ -343,6 +383,21 @@ export class MockDataService implements IOrderBookService {
     this.configListeners.add(listener);
     listener(this.getConfig());
     return () => this.configListeners.delete(listener);
+  }
+
+  public subscribeStats(listener: StatsListener): () => void {
+    this.statsListeners.add(listener);
+    listener(this.stats);
+    return () => this.statsListeners.delete(listener);
+  }
+
+  public getStats(): EngineStats {
+    return { ...this.stats };
+  }
+
+  private notifyStatsListeners(stats: EngineStats): void {
+    this.stats = { ...stats };
+    this.statsListeners.forEach((l) => l(this.stats));
   }
 
   private notifyBookListeners(): void {

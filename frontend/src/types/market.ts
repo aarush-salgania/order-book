@@ -31,6 +31,17 @@ export interface Trade {
   quantity: number;
   side: OrderSide;
   timestamp: number;
+  latencyNs?: number;
+  poolUsed?: number;
+  poolCap?: number;
+  poolAllocNs?: number;
+}
+
+export interface EngineStats {
+  latencyNs: number;
+  poolUsed: number;
+  poolCap: number;
+  poolAllocNs: number;
 }
 
 export interface ManualOrderPayload {
@@ -56,6 +67,7 @@ export interface OrderBookStats {
 export type OrderBookListener = (snapshot: OrderBookSnapshot) => void;
 export type TradeListener = (trade: Trade) => void;
 export type ConfigListener = (config: SimulationConfig) => void;
+export type StatsListener = (stats: EngineStats) => void;
 export type ConnectionStatus = 'connected' | 'connecting' | 'disconnected';
 export type ConnectionListener = (status: ConnectionStatus) => void;
 
@@ -67,12 +79,15 @@ export interface IOrderBookService {
   subscribeBook(listener: OrderBookListener): () => void;
   subscribeTrades(listener: TradeListener): () => void;
   subscribeConfig(listener: ConfigListener): () => void;
+  subscribeStats?: (listener: StatsListener) => () => void;
+  getStats?: () => EngineStats;
   subscribeStatus?: (listener: ConnectionListener) => () => void;
   getStatus?: () => ConnectionStatus;
   reconnect?: () => void;
   updateConfig(config: Partial<SimulationConfig>): void;
   sendOrder(order: ManualOrderPayload): Promise<{ success: boolean; message: string }>;
   resetBook(): void;
+  clearBook?: () => void;
   getConfig(): SimulationConfig;
   getSnapshot(): OrderBookSnapshot;
   getRecentTrades(): Trade[];

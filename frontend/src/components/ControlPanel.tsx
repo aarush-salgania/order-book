@@ -9,6 +9,7 @@ interface ControlPanelProps {
   onReconnect?: () => void;
   onUpdateConfig: (cfg: Partial<SimulationConfig>) => void;
   onResetBook: () => void;
+  onClearData?: () => void;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -19,6 +20,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onReconnect,
   onUpdateConfig,
   onResetBook,
+  onClearData,
 }) => {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-lg p-4 space-y-4">
@@ -27,12 +29,24 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-300">
           Engine Controls
         </h2>
-        <button
-          onClick={onResetBook}
-          className="text-xs text-slate-400 hover:text-white px-2 py-0.5 rounded border border-slate-700 bg-slate-800 transition"
-        >
-          Reset Book
-        </button>
+        <div className="flex items-center space-x-2">
+          {onClearData && (
+            <button
+              onClick={onClearData}
+              className="text-xs text-slate-300 hover:text-white px-2 py-0.5 rounded border border-slate-700 bg-slate-800 hover:bg-slate-700 transition"
+              title="Clear all dummy/pre-seeded data and start with an empty book"
+            >
+              Clear Dummy Data
+            </button>
+          )}
+          <button
+            onClick={onResetBook}
+            className="text-xs text-slate-400 hover:text-white px-2 py-0.5 rounded border border-slate-700 bg-slate-800 transition"
+            title="Re-seed standard demo liquidity"
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       {/* Mode Switcher */}

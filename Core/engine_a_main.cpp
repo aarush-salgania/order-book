@@ -60,7 +60,40 @@ int main() {
             bids = PriceLevelContiguous(band);
             asks = PriceLevelContiguous(band);
             book = std::make_unique<BookCore>(bids, asks);
+            std::cout << "BOOK_SNAPSHOT: {\"bids\":[],\"asks\":[]}" << std::endl;
             std::cout << "ENGINE_STATS: {\"latency_ns\":0,\"pool_used\":0,\"pool_cap\":100000,\"pool_alloc_ns\":2.3}" << std::endl;
+            continue;
+        }
+        if (line.find("snapshot") != std::string::npos) {
+            std::cout << "BOOK_SNAPSHOT: {\"bids\":[";
+            Tick b = bids.best_bid();
+            bool first = true;
+            int count = 0;
+            while (b >= band.min_tick && b <= band.max_tick && count < 25) {
+                if (bids.has_level(b)) {
+                    if (!first) std::cout << ",";
+                    first = false;
+                    std::cout << "{\"price\":" << std::fixed << std::setprecision(2) << (static_cast<double>(b) / TICKS_PER_RUPEE)
+                              << ",\"quantity\":" << bids.get_level(b).qty << "}";
+                    count++;
+                }
+                b--;
+            }
+            std::cout << "],\"asks\":[";
+            Tick a = asks.best_ask();
+            first = true;
+            count = 0;
+            while (a >= band.min_tick && a <= band.max_tick && count < 25) {
+                if (asks.has_level(a)) {
+                    if (!first) std::cout << ",";
+                    first = false;
+                    std::cout << "{\"price\":" << std::fixed << std::setprecision(2) << (static_cast<double>(a) / TICKS_PER_RUPEE)
+                              << ",\"quantity\":" << asks.get_level(a).qty << "}";
+                    count++;
+                }
+                a++;
+            }
+            std::cout << "]}" << std::endl;
             continue;
         }
         try {
@@ -113,19 +146,25 @@ int main() {
             const std::size_t pool_used = book->pool_in_use();
             const std::size_t pool_cap = book->pool_capacity();
 
+            const double order_price = static_cast<double>(tick) / TICKS_PER_RUPEE;
+
             if (res.filled > 0) {
                 const double trade_price = static_cast<double>(best_opp) / TICKS_PER_RUPEE;
                 std::cout << "TRADE_EXECUTED: {\"side\":\"" << (side == 'B' ? "buy" : "sell")
                           << "\",\"price\":" << std::fixed << std::setprecision(2) << trade_price
+                          << ",\"order_price\":" << std::fixed << std::setprecision(2) << order_price
                           << ",\"quantity\":" << res.filled
+                          << ",\"remaining\":" << res.remaining
                           << ",\"latency_ns\":" << match_ns
                           << ",\"pool_used\":" << pool_used
                           << ",\"pool_cap\":" << pool_cap
                           << ",\"pool_alloc_ns\":2.3"
                           << "}" << std::endl;
             } else {
-                std::cout << "ENGINE_STATS: {"
-                          << "\"latency_ns\":" << match_ns
+                std::cout << "ORDER_ACCEPTED: {\"side\":\"" << (side == 'B' ? "buy" : "sell")
+                          << "\",\"price\":" << std::fixed << std::setprecision(2) << order_price
+                          << ",\"quantity\":" << res.remaining
+                          << ",\"latency_ns\":" << match_ns
                           << ",\"pool_used\":" << pool_used
                           << ",\"pool_cap\":" << pool_cap
                           << ",\"pool_alloc_ns\":2.3"

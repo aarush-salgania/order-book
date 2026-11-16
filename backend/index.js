@@ -20,10 +20,16 @@ engineProcess.on("error", (err) => {
     console.error(`[C++ Engine Process Error]: ${err.message}`);
 });
 
+let logCounter = 0;
+
 engineProcess.stdout.on("data", (data) => {
     const lines = data.toString().split(/\r?\n/).filter((line) => line.trim().length > 0);
     for (const line of lines) {
-        console.log(`[C++ Engine]: ${line}`);
+        logCounter++;
+        // Sample logging so terminal doesn't choke during high-frequency throughput
+        if (logCounter % 20 === 0 || line.startsWith("BOOK_") || line.startsWith("ENGINE_") || logCounter < 50) {
+            console.log(`[C++ Engine]: ${line}`);
+        }
         broadcastToClients(line);
     }
 });
@@ -50,6 +56,15 @@ app.post("/api/order", (req, res) => {
     res.status(200).json({ status: "Order sent to engine" });
 });
 
+app.post("/api/orders", (req, res) => {
+    const { orders } = req.body;
+    if (!Array.isArray(orders)) return res.status(400).json({ error: "Orders array required" });
+    for (const ord of orders) {
+        sendToEngine(ord);
+    }
+    res.status(200).json({ status: `${orders.length} orders dispatched` });
+});
+
 app.listen(PORT, () => {
     console.log(`Server running on port http://localhost:${PORT}`);
     console.log(`Websocket Server running on port ws://localhost:${WS_PORT}`);
@@ -58,6 +73,32 @@ app.listen(PORT, () => {
 wss.on("connection", (ws) => {
     console.log("Frontend connected via WebSocket");
     clients.add(ws);
+
+    ws.on("message", (raw) => {
+        try {
+            const str = raw.toString().trim();
+            if (!str) return;
+            if (str.startsWith("[") && str.endsWith("]")) {
+                const arr = JSON.parse(str);
+                for (const item of arr) sendToEngine(item);
+            } else if (str.startsWith("{")) {
+                const obj = JSON.parse(str);
+                if (obj.action === "order" && obj.order) {
+                    sendToEngine(obj.order);
+                } else if (obj.action === "orders" && Array.isArray(obj.orders)) {
+                    for (const item of obj.orders) sendToEngine(item);
+                } else if (obj.action === "clear" || obj.action === "reset" || obj.action === "snapshot") {
+                    sendToEngine(obj.action);
+                } else {
+                    sendToEngine(obj);
+                }
+            } else {
+                sendToEngine(str);
+            }
+        } catch (e) {
+            console.error("Error handling WS message:", e.message);
+        }
+    });
 
     ws.on("error", (err) => {
         console.error("WS Client error:", err.message);

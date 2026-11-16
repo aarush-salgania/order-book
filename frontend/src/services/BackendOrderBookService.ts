@@ -17,8 +17,8 @@ import type {
 
 /**
  * BackendOrderBookService coordinates real-time communication between
- * the React frontend and the backend engine running on:
- * - Express HTTP API: http://localhost:4000/api/order
+ * the React frontend and the C++ backend matching engine running on:
+ * - Express HTTP API: http://localhost:4000
  * - WebSocket Server: ws://localhost:4001
  */
 export class BackendOrderBookService implements IOrderBookService {
@@ -32,8 +32,8 @@ export class BackendOrderBookService implements IOrderBookService {
 
   private config: SimulationConfig = {
     isRunning: false,
-    activeBots: 0,
-    updateSpeedMs: 500,
+    activeBots: 15,
+    updateSpeedMs: 250,
   };
 
   private basePrice = 10520.0;
@@ -64,6 +64,8 @@ export class BackendOrderBookService implements IOrderBookService {
   private readonly depthLevels = 18;
   private readonly tickSize = 0.5;
 
+  private notifyScheduled = false;
+
   constructor(
     httpUrl = 'http://localhost:4000',
     wsUrl = 'ws://localhost:4001'
@@ -71,9 +73,6 @@ export class BackendOrderBookService implements IOrderBookService {
     this.httpUrl = httpUrl;
     this.wsUrl = wsUrl;
 
-    this.initializeOrderBook();
-    this.seedInitialTrades();
-    this.startBackgroundSim();
     this.connectWebSocket();
   }
 
@@ -95,6 +94,10 @@ export class BackendOrderBookService implements IOrderBookService {
       this.ws.onopen = () => {
         console.info(`[Backend WS] Connected to ${this.wsUrl}`);
         this.setStatus('connected');
+        // Request current state from engine
+        try {
+          this.ws?.send(JSON.stringify({ action: 'snapshot' }));
+        } catch {}
       };
 
       this.ws.onmessage = (event: MessageEvent) => {
@@ -132,9 +135,7 @@ export class BackendOrderBookService implements IOrderBookService {
     if (this.ws) {
       try {
         this.ws.close();
-      } catch {
-        // ignore
-      }
+      } catch {}
       this.ws = null;
     }
     this.connectWebSocket();
@@ -159,7 +160,7 @@ export class BackendOrderBookService implements IOrderBookService {
   }
 
   // ============================================================================
-  // Message Parser & Processing
+  // Message Parser & Processing (Single Source of Truth from C++)
   // ============================================================================
   private handleIncomingMessage(rawData: string | ArrayBuffer): void {
     if (typeof rawData !== 'string') return;
@@ -167,9 +168,61 @@ export class BackendOrderBookService implements IOrderBookService {
     const trimmed = rawData.trim();
     if (!trimmed) return;
 
-    console.log(`[Backend WS Message Received]:`, trimmed);
+    // 0. BOOK_SNAPSHOT: {"bids":[{"price":...,"quantity":...}],"asks":[...]}
+    if (trimmed.startsWith('BOOK_SNAPSHOT:')) {
+      try {
+        const payload = trimmed.substring('BOOK_SNAPSHOT:'.length).trim();
+        const obj = JSON.parse(payload);
+        if (Array.isArray(obj.bids) && Array.isArray(obj.asks)) {
+          this.bids.clear();
+          this.asks.clear();
+          for (const b of obj.bids) {
+            if (b.price > 0 && b.quantity > 0) this.bids.set(Number(b.price), Number(b.quantity));
+          }
+          for (const a of obj.asks) {
+            if (a.price > 0 && a.quantity > 0) this.asks.set(Number(a.price), Number(a.quantity));
+          }
+          this.scheduleBookNotify();
+        }
+      } catch (e) {
+        console.warn('Failed to parse BOOK_SNAPSHOT:', e);
+      }
+      return;
+    }
 
-    // 0. Check if backend sent ENGINE_STATS: ...
+    // 1. ORDER_ACCEPTED: {"side":"buy","price":10520.00,"quantity":10,"latency_ns":...}
+    if (trimmed.startsWith('ORDER_ACCEPTED:')) {
+      try {
+        const payload = trimmed.substring('ORDER_ACCEPTED:'.length).trim();
+        const obj = JSON.parse(payload);
+        const side: OrderSide = (obj.side === 'sell' || obj.side === 'S') ? 'sell' : 'buy';
+        const price = +Number(obj.price).toFixed(2);
+        const qty = Math.max(1, Math.round(Number(obj.quantity)));
+
+        if (side === 'buy') {
+          const current = this.bids.get(price) || 0;
+          this.bids.set(price, current + qty);
+        } else {
+          const current = this.asks.get(price) || 0;
+          this.asks.set(price, current + qty);
+        }
+
+        if (obj.latency_ns !== undefined || obj.pool_used !== undefined) {
+          this.notifyStatsListeners({
+            latencyNs: Number(obj.latency_ns) || this.currentStats.latencyNs,
+            poolUsed: obj.pool_used !== undefined ? Number(obj.pool_used) : this.currentStats.poolUsed,
+            poolCap: Number(obj.pool_cap) || this.currentStats.poolCap,
+            poolAllocNs: Number(obj.pool_alloc_ns) || this.currentStats.poolAllocNs,
+          });
+        }
+        this.scheduleBookNotify();
+      } catch (e) {
+        console.warn('Failed to parse ORDER_ACCEPTED:', e);
+      }
+      return;
+    }
+
+    // 2. ENGINE_STATS: {"latency_ns":0,"pool_used":0,"pool_cap":100000,"pool_alloc_ns":2.3}
     if (trimmed.startsWith('ENGINE_STATS:')) {
       try {
         const payload = trimmed.substring('ENGINE_STATS:'.length).trim();
@@ -186,23 +239,24 @@ export class BackendOrderBookService implements IOrderBookService {
       return;
     }
 
-    // 1. Check if backend sent TRADE_EXECUTED: ... (from dummy.cpp or similar)
+    // 3. TRADE_EXECUTED: ...
     if (trimmed.startsWith('TRADE_EXECUTED:')) {
       const payload = trimmed.substring('TRADE_EXECUTED:'.length).trim();
       this.processTradePayload(payload);
       return;
     }
 
-    // 2. Check if backend sent JSON
+    // 4. Generic JSON fallback
     if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
       try {
         const parsed = JSON.parse(trimmed);
-
-        if (parsed.type === 'trade' || parsed.event === 'trade') {
+        if (parsed.type === 'trade' || parsed.event === 'trade' || parsed.side) {
           this.applyTrade({
             price: Number(parsed.price) || this.lastPrice,
-            quantity: Number(parsed.quantity) || 0.1,
-            side: (parsed.side === 'sell' ? 'sell' : 'buy') as OrderSide,
+            orderPrice: parsed.order_price !== undefined ? Number(parsed.order_price) : undefined,
+            quantity: Number(parsed.quantity) || 1,
+            remaining: parsed.remaining !== undefined ? Number(parsed.remaining) : 0,
+            side: (parsed.side === 'sell' || parsed.side === 'S') ? 'sell' : 'buy',
             latencyNs: parsed.latency_ns !== undefined ? Number(parsed.latency_ns) : undefined,
             poolUsed: parsed.pool_used !== undefined ? Number(parsed.pool_used) : undefined,
             poolCap: parsed.pool_cap !== undefined ? Number(parsed.pool_cap) : undefined,
@@ -210,63 +264,19 @@ export class BackendOrderBookService implements IOrderBookService {
           });
           return;
         }
-
-        if (parsed.type === 'stats' || parsed.type === 'engine_stats') {
-          this.notifyStatsListeners({
-            latencyNs: Number(parsed.latency_ns) || this.currentStats.latencyNs,
-            poolUsed: parsed.pool_used !== undefined ? Number(parsed.pool_used) : this.currentStats.poolUsed,
-            poolCap: Number(parsed.pool_cap) || this.currentStats.poolCap,
-            poolAllocNs: Number(parsed.pool_alloc_ns) || this.currentStats.poolAllocNs,
-          });
-          return;
-        }
-
-        if (parsed.type === 'snapshot' || (parsed.bids && parsed.asks)) {
-          // Custom book snapshot update
-          if (Array.isArray(parsed.bids) && Array.isArray(parsed.asks)) {
-            this.bids.clear();
-            this.asks.clear();
-            for (const b of parsed.bids) this.bids.set(Number(b.price), Number(b.quantity));
-            for (const a of parsed.asks) this.asks.set(Number(a.price), Number(a.quantity));
-            this.notifyBookListeners();
-          }
-          return;
-        }
-
-        // Generic object with side, price, qty
-        if (parsed.side && (parsed.price !== undefined || parsed.quantity !== undefined)) {
-          this.applyTrade({
-            price: Number(parsed.price) || this.lastPrice,
-            quantity: Number(parsed.quantity) || 0.1,
-            side: parsed.side === 'sell' ? 'sell' : 'buy',
-            latencyNs: parsed.latency_ns !== undefined ? Number(parsed.latency_ns) : undefined,
-            poolUsed: parsed.pool_used !== undefined ? Number(parsed.pool_used) : undefined,
-            poolCap: parsed.pool_cap !== undefined ? Number(parsed.pool_cap) : undefined,
-            poolAllocNs: parsed.pool_alloc_ns !== undefined ? Number(parsed.pool_alloc_ns) : undefined,
-          });
-          return;
-        }
-      } catch (e) {
-        console.warn('Failed to parse JSON packet:', e);
-      }
+      } catch {}
     }
-
-    // 3. Fallback: Parse text-based trade or log
-    this.processTradePayload(trimmed);
   }
 
-  /**
-   * Parses string payload like:
-   * '{"side":"buy","price":64250,"quantity":0.25}' or 'BUY 0.25 64250'
-   */
   private processTradePayload(payload: string): void {
-    // Try JSON first
     try {
       if (payload.startsWith('{')) {
         const obj = JSON.parse(payload);
         const price = Number(obj.price) || this.lastPrice;
-        const qty = Number(obj.quantity || obj.qty) || 0.25;
-        const side: OrderSide = obj.side === 'sell' ? 'sell' : 'buy';
+        const orderPrice = obj.order_price !== undefined ? Number(obj.order_price) : price;
+        const qty = Number(obj.quantity || obj.qty) || 1;
+        const remaining = obj.remaining !== undefined ? Number(obj.remaining) : 0;
+        const side: OrderSide = (obj.side === 'sell' || obj.side === 'S') ? 'sell' : 'buy';
         const latencyNs = obj.latency_ns !== undefined ? Number(obj.latency_ns) : undefined;
         const poolUsed = obj.pool_used !== undefined ? Number(obj.pool_used) : undefined;
         const poolCap = obj.pool_cap !== undefined ? Number(obj.pool_cap) : undefined;
@@ -283,7 +293,9 @@ export class BackendOrderBookService implements IOrderBookService {
 
         this.applyTrade({
           price,
+          orderPrice,
           quantity: qty,
+          remaining,
           side,
           latencyNs,
           poolUsed,
@@ -292,34 +304,25 @@ export class BackendOrderBookService implements IOrderBookService {
         });
         return;
       }
-    } catch {
-      // not JSON
-    }
+    } catch {}
 
-    // Try regex matching: BUY/SELL <qty> <price> or BUY/SELL <price> <qty>
+    // Regex fallback
     const match = payload.match(/(BUY|SELL)\s+([0-9.]+)\s+([0-9.]+)/i);
     if (match) {
       const side: OrderSide = match[1].toLowerCase() === 'sell' ? 'sell' : 'buy';
       const val1 = parseFloat(match[2]);
       const val2 = parseFloat(match[3]);
-      // Generally larger number is price, smaller is quantity
       const price = Math.max(val1, val2);
       const quantity = Math.min(val1, val2);
       this.applyTrade({ price, quantity, side });
-      return;
     }
-
-    // Generic trade fallback for unformatted engine output
-    this.applyTrade({
-      price: this.lastPrice,
-      quantity: 0.1,
-      side: payload.toLowerCase().includes('sell') ? 'sell' : 'buy',
-    });
   }
 
   private applyTrade(details: {
     price: number;
+    orderPrice?: number;
     quantity: number;
+    remaining?: number;
     side: OrderSide;
     latencyNs?: number;
     poolUsed?: number;
@@ -329,6 +332,8 @@ export class BackendOrderBookService implements IOrderBookService {
     const price = +details.price.toFixed(2);
     const quantity = Math.max(1, Math.round(details.quantity));
     const side = details.side;
+    const remaining = details.remaining ? Math.round(details.remaining) : 0;
+    const orderPrice = details.orderPrice ? +details.orderPrice.toFixed(2) : price;
 
     this.lastPrice = price;
     this.volume24h += quantity;
@@ -336,18 +341,29 @@ export class BackendOrderBookService implements IOrderBookService {
     if (price > this.high24h) this.high24h = price;
     if (price < this.low24h) this.low24h = price;
 
-    // Adjust resting orders in ladder
+    // Adjust resting orders in ladder:
+    // The aggressive order was on `side`. It filled against the OPPOSITE side at `price`.
     if (side === 'buy') {
       const askQty = this.asks.get(price);
       if (askQty !== undefined) {
         if (askQty <= quantity) this.asks.delete(price);
         else this.asks.set(price, Math.round(askQty - quantity));
       }
+      // If the incoming buy order had remaining unfilled shares, they rest as a bid at orderPrice
+      if (remaining > 0) {
+        const curBid = this.bids.get(orderPrice) || 0;
+        this.bids.set(orderPrice, curBid + remaining);
+      }
     } else {
       const bidQty = this.bids.get(price);
       if (bidQty !== undefined) {
         if (bidQty <= quantity) this.bids.delete(price);
         else this.bids.set(price, Math.round(bidQty - quantity));
+      }
+      // If the incoming sell order had remaining unfilled shares, they rest as an ask at orderPrice
+      if (remaining > 0) {
+        const curAsk = this.asks.get(orderPrice) || 0;
+        this.asks.set(orderPrice, curAsk + remaining);
       }
     }
 
@@ -365,11 +381,20 @@ export class BackendOrderBookService implements IOrderBookService {
 
     this.recentTrades = [trade, ...this.recentTrades.slice(0, 49)];
     this.notifyTradeListeners(trade);
-    this.notifyBookListeners();
+    this.scheduleBookNotify();
+  }
+
+  private scheduleBookNotify(): void {
+    if (this.notifyScheduled) return;
+    this.notifyScheduled = true;
+    requestAnimationFrame(() => {
+      this.notifyScheduled = false;
+      this.notifyBookListeners();
+    });
   }
 
   // ============================================================================
-  // Order Ingestion (HTTP & WebSocket)
+  // Order Ingestion (Direct to C++ Engine without optimistic ghosting)
   // ============================================================================
   public async sendOrder(
     order: ManualOrderPayload
@@ -377,7 +402,6 @@ export class BackendOrderBookService implements IOrderBookService {
     const formattedPrice = +order.price.toFixed(2);
     const formattedQty = Math.max(1, Math.round(order.quantity));
 
-    // Structure the payload for the C++ engine
     const orderData = {
       side: order.side,
       price: formattedPrice,
@@ -388,17 +412,20 @@ export class BackendOrderBookService implements IOrderBookService {
 
     const orderString = JSON.stringify(orderData);
 
-    // Add to local book optimistically so user sees their resting order immediately
-    if (order.side === 'buy') {
-      const existing = this.bids.get(formattedPrice) || 0;
-      this.bids.set(formattedPrice, existing + formattedQty);
-    } else {
-      const existing = this.asks.get(formattedPrice) || 0;
-      this.asks.set(formattedPrice, existing + formattedQty);
+    // 1. Try sending directly over WebSocket
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(orderString);
+        return {
+          success: true,
+          message: `Dispatched to C++ Engine: ${order.side.toUpperCase()} ${formattedQty} shares @ ₹${formattedPrice.toFixed(2)}`,
+        };
+      } catch (wsErr) {
+        console.warn('[Backend WS Error] Fallback to HTTP:', wsErr);
+      }
     }
-    this.notifyBookListeners();
 
-    // 1. Try sending via HTTP POST to /api/order
+    // 2. HTTP POST fallback
     try {
       const response = await fetch(`${this.httpUrl}/api/order`, {
         method: 'POST',
@@ -412,28 +439,12 @@ export class BackendOrderBookService implements IOrderBookService {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const resJson = await response.json();
       return {
         success: true,
-        message: `Order sent to C++ Engine: ${order.side.toUpperCase()} ${formattedQty} shares @ ₹${formattedPrice.toFixed(2)} (${resJson.status || 'Success'})`,
+        message: `Order sent to C++ Engine: ${order.side.toUpperCase()} ${formattedQty} shares @ ₹${formattedPrice.toFixed(2)}`,
       };
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      console.warn(`[Backend HTTP Error] POST ${this.httpUrl}/api/order failed:`, errMsg);
-
-      // 2. Try sending directly over WebSocket if open
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        try {
-          this.ws.send(JSON.stringify({ action: 'order', order: orderString }));
-          return {
-            success: true,
-            message: `Dispatched via WebSocket fallback: ${order.side.toUpperCase()} ${formattedQty} shares @ ₹${formattedPrice.toFixed(2)}`,
-          };
-        } catch (wsErr) {
-          console.error('[Backend WS Error] Fallback send failed:', wsErr);
-        }
-      }
-
       return {
         success: false,
         message: `Backend connection error (${errMsg}). Check if backend server is running on ${this.httpUrl}.`,
@@ -442,7 +453,7 @@ export class BackendOrderBookService implements IOrderBookService {
   }
 
   // ============================================================================
-  // Background Liquidity Simulation
+  // High-Throughput Realistic Market Flow Simulator (Through C++ Engine)
   // ============================================================================
   private startBackgroundSim(): void {
     if (this.simInterval) {
@@ -454,65 +465,166 @@ export class BackendOrderBookService implements IOrderBookService {
 
     this.simInterval = setInterval(() => {
       this.simulateTick();
-    }, this.config.updateSpeedMs);
+    }, Math.max(1, this.config.updateSpeedMs));
   }
 
   private simulateTick(): void {
     if (!this.config.isRunning) return;
 
-    // Maintain realistic order book spread and resting orders around base price
-    if (this.bids.size < 10 || this.asks.size < 10) {
-      this.initializeOrderBook();
-      this.notifyBookListeners();
+    const sortedBids = Array.from(this.bids.keys()).sort((a, b) => b - a);
+    const sortedAsks = Array.from(this.asks.keys()).sort((a, b) => a - b);
+
+    const bestBid = sortedBids.length > 0 ? sortedBids[0] : 0;
+    const bestAsk = sortedAsks.length > 0 ? sortedAsks[0] : 0;
+
+    let mid = 10520.0;
+    if (bestBid > 0 && bestAsk > 0 && bestAsk > bestBid) {
+      mid = (bestBid + bestAsk) / 2;
+    } else if (bestBid > 0) {
+      mid = bestBid + 0.5;
+    } else if (bestAsk > 0) {
+      mid = bestAsk - 0.5;
+    } else {
+      mid = this.lastPrice || 10520.0;
+    }
+
+    // Dynamic price drift with mean reversion
+    const drift = (Math.random() - 0.49) * this.tickSize;
+    if (Math.abs(mid - 10520.0) > 80) {
+      mid += (10520.0 - mid) * 0.05;
+    } else {
+      mid += drift;
+    }
+    mid = Math.round(mid * 2) / 2;
+
+    // High throughput scaling: batch orders per tick when interval is small
+    let batch = 1;
+    if (this.config.updateSpeedMs <= 5) {
+      batch = Math.max(10, Math.min(50, Math.round(this.config.activeBots * 1.5)));
+    } else if (this.config.updateSpeedMs <= 20) {
+      batch = Math.max(3, Math.min(15, Math.round(this.config.activeBots * 0.5)));
+    } else if (this.config.updateSpeedMs <= 50) {
+      batch = 2;
+    }
+
+    const ordersToSend: any[] = [];
+
+    for (let i = 0; i < batch; i++) {
+      const needBids = this.bids.size < 5;
+      const needAsks = this.asks.size < 5;
+
+      let isAggressive = Math.random() < 0.40;
+      if (needBids || needAsks) isAggressive = false;
+
+      let isBuy = Math.random() > 0.5;
+      if (needBids && !needAsks) isBuy = true;
+      else if (needAsks && !needBids) isBuy = false;
+
+      let orderPrice: number;
+      const qtyOptions = [1, 2, 5, 10, 15, 20, 25, 50];
+      const orderQty = qtyOptions[Math.floor(Math.random() * qtyOptions.length)];
+
+      if (isAggressive && bestBid > 0 && bestAsk > 0 && bestAsk >= bestBid) {
+        // Taker crossing spread: triggers immediate match in C++
+        if (isBuy) {
+          orderPrice = bestAsk;
+        } else {
+          orderPrice = bestBid;
+        }
+      } else {
+        // Passive maker order: provides depth around mid-price
+        const offset = Math.floor(1 + Math.random() * 8) * this.tickSize;
+        if (isBuy) {
+          orderPrice = Math.max(0.5, +(mid - offset).toFixed(2));
+        } else {
+          orderPrice = +(mid + offset).toFixed(2);
+        }
+      }
+
+      orderPrice = Math.round(orderPrice * 2) / 2;
+
+      ordersToSend.push({
+        side: isBuy ? 'buy' : 'sell',
+        price: orderPrice,
+        quantity: orderQty,
+        type: 'limit',
+        timestamp: Date.now(),
+      });
+    }
+
+    this.dispatchSimOrders(ordersToSend);
+  }
+
+  private dispatchSimOrders(orders: any[]): void {
+    if (orders.length === 0) return;
+
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      if (orders.length === 1) {
+        this.ws.send(JSON.stringify(orders[0]));
+      } else {
+        this.ws.send(JSON.stringify(orders));
+      }
       return;
     }
 
-    // Micro fluctuations in existing levels
-    const isBid = Math.random() > 0.5;
-    const targetMap = isBid ? this.bids : this.asks;
-    const prices = Array.from(targetMap.keys());
-    if (prices.length > 0) {
-      const price = prices[Math.floor(Math.random() * prices.length)];
-      const current = targetMap.get(price) || 0.5;
-      const delta = (Math.random() - 0.48) * 0.2;
-      const updated = Math.max(0.05, +(current + delta).toFixed(4));
-      targetMap.set(price, updated);
-      this.notifyBookListeners();
-    }
+    try {
+      fetch(`${this.httpUrl}/api/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orders }),
+      }).catch(() => {});
+    } catch {}
   }
 
-  private initializeOrderBook(): void {
+  // ============================================================================
+  // Book Lifecycle (Reset & Clear)
+  // ============================================================================
+  public resetBook(): void {
     this.bids.clear();
     this.asks.clear();
+    this.recentTrades = [];
+    this.lastPrice = 10520.0;
+    this.notifyBookListeners();
 
-    for (let i = 1; i <= this.depthLevels; i++) {
-      const price = +(this.basePrice - i * this.tickSize).toFixed(2);
-      const baseQty = Math.round(5 + i * 2 + Math.random() * 15);
-      this.bids.set(price, baseQty);
-    }
-
-    for (let i = 1; i <= this.depthLevels; i++) {
-      const price = +(this.basePrice + i * this.tickSize).toFixed(2);
-      const baseQty = Math.round(5 + i * 2 + Math.random() * 15);
-      this.asks.set(price, baseQty);
-    }
+    try {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ action: 'clear' }));
+      } else {
+        fetch(`${this.httpUrl}/api/order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order: '{"action":"clear"}' }),
+        }).catch(() => {});
+      }
+    } catch {}
   }
 
-  private seedInitialTrades(): void {
-    const now = Date.now();
-    for (let i = 15; i >= 0; i--) {
-      const side: OrderSide = Math.random() > 0.5 ? 'buy' : 'sell';
-      const price = +(this.basePrice + (Math.random() - 0.5) * 5).toFixed(2);
-      const quantity = Math.round(1 + Math.random() * 20);
+  public clearBook(): void {
+    this.bids.clear();
+    this.asks.clear();
+    this.recentTrades = [];
+    this.lastPrice = 10520.0;
+    this.volume24h = 0;
+    this.currentStats = {
+      latencyNs: 0,
+      poolUsed: 0,
+      poolCap: 100000,
+      poolAllocNs: 2.3,
+    };
+    this.notifyBookListeners();
+    this.notifyStatsListeners(this.currentStats);
 
-      this.recentTrades.push({
-        id: `seed-${i}-${Math.random().toString(36).substring(2, 6)}`,
-        price,
-        quantity,
-        side,
-        timestamp: now - i * 2000,
-      });
-    }
+    try {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ action: 'clear' }));
+      } else {
+        fetch(`${this.httpUrl}/api/order`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ order: '{"action":"clear"}' }),
+        }).catch(() => {});
+      }
+    } catch {}
   }
 
   // ============================================================================
@@ -551,10 +663,10 @@ export class BackendOrderBookService implements IOrderBookService {
       depthPercent: Math.min(100, Math.round((a.total / maxDepth) * 100)),
     }));
 
-    const bestBid = bids.length > 0 ? bids[0].price : +(this.basePrice - this.tickSize).toFixed(2);
-    const bestAsk = asks.length > 0 ? asks[0].price : +(this.basePrice + this.tickSize).toFixed(2);
-    const spread = +(bestAsk - bestBid).toFixed(2);
-    const midPrice = +((bestBid + bestAsk) / 2).toFixed(2);
+    const bestBid = bids.length > 0 ? bids[0].price : 0;
+    const bestAsk = asks.length > 0 ? asks[0].price : 0;
+    const spread = (bestBid > 0 && bestAsk > 0) ? +(bestAsk - bestBid).toFixed(2) : 0;
+    const midPrice = (bestBid > 0 && bestAsk > 0) ? +((bestBid + bestAsk) / 2).toFixed(2) : this.lastPrice;
     const spreadPercent = midPrice > 0 ? +((spread / midPrice) * 100).toFixed(3) : 0;
 
     return {
@@ -593,36 +705,6 @@ export class BackendOrderBookService implements IOrderBookService {
     }
 
     this.configListeners.forEach((l) => l(this.config));
-  }
-
-  public resetBook(): void {
-    this.initializeOrderBook();
-    this.notifyBookListeners();
-  }
-
-  public clearBook(): void {
-    this.bids.clear();
-    this.asks.clear();
-    this.recentTrades = [];
-    this.lastPrice = 10520.0;
-    this.volume24h = 0;
-    this.currentStats = {
-      latencyNs: 0,
-      poolUsed: 0,
-      poolCap: 100000,
-      poolAllocNs: 2.3,
-    };
-    this.notifyBookListeners();
-    this.notifyStatsListeners(this.currentStats);
-
-    // Send clear signal to C++ engine
-    try {
-      fetch(`${this.httpUrl}/api/order`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order: '{"action":"clear"}' }),
-      }).catch(() => {});
-    } catch {}
   }
 
   // ============================================================================
@@ -683,9 +765,7 @@ export class BackendOrderBookService implements IOrderBookService {
     if (this.ws) {
       try {
         this.ws.close();
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
   }
 }

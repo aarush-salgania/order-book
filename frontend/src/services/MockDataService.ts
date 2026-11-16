@@ -195,11 +195,25 @@ export class MockDataService implements IOrderBookService {
     const bestBid = this.getBestBid();
     const bestAsk = this.getBestAsk();
 
+    if (side === 'buy' && (bestAsk <= 0 || bestAsk >= 50000)) return;
+    if (side === 'sell' && (bestBid <= 0 || bestBid >= 50000)) return;
+
     const price = side === 'buy' ? bestAsk : bestBid;
     const quantity = Math.round(1 + Math.random() * 15);
 
     this.lastPrice = price;
     this.volume24h += quantity;
+
+    // Decrement resting order on opposite side
+    if (side === 'buy') {
+      const curAsk = this.asks.get(price) || 0;
+      if (curAsk <= quantity) this.asks.delete(price);
+      else this.asks.set(price, Math.round(curAsk - quantity));
+    } else {
+      const curBid = this.bids.get(price) || 0;
+      if (curBid <= quantity) this.bids.delete(price);
+      else this.bids.set(price, Math.round(curBid - quantity));
+    }
 
     const latencyNs = Math.floor(130 + Math.random() * 35);
     const poolUsed = Math.floor(14 + Math.random() * 12);
@@ -227,6 +241,7 @@ export class MockDataService implements IOrderBookService {
     // Keep rolling buffer of latest 50 trades
     this.recentTrades = [trade, ...this.recentTrades.slice(0, 49)];
     this.notifyTradeListeners(trade);
+    this.notifyBookListeners();
   }
 
   private getBestBid(): number {
@@ -314,21 +329,77 @@ export class MockDataService implements IOrderBookService {
   // ============================================================================
   public async sendOrder(order: ManualOrderPayload): Promise<{ success: boolean; message: string }> {
     const price = +order.price.toFixed(2);
-    const qty = Math.max(1, Math.round(order.quantity));
+    let qty = Math.max(1, Math.round(order.quantity));
 
     if (order.side === 'buy') {
-      const existing = this.bids.get(price) || 0;
-      this.bids.set(price, existing + qty);
+      const bestAsk = this.getBestAsk();
+      if (bestAsk > 0 && price >= bestAsk && this.asks.has(bestAsk)) {
+        // Cross against best ask
+        const restingAskQty = this.asks.get(bestAsk) || 0;
+        const fillQty = Math.min(qty, restingAskQty);
+        if (restingAskQty <= fillQty) this.asks.delete(bestAsk);
+        else this.asks.set(bestAsk, restingAskQty - fillQty);
+
+        qty -= fillQty;
+        this.lastPrice = bestAsk;
+        this.recentTrades = [
+          {
+            id: `tr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            price: bestAsk,
+            quantity: fillQty,
+            side: 'buy',
+            timestamp: Date.now(),
+            latencyNs: 140,
+            poolUsed: 15,
+            poolCap: 100000,
+            poolAllocNs: 2.3,
+          },
+          ...this.recentTrades.slice(0, 49),
+        ];
+        this.notifyTradeListeners(this.recentTrades[0]);
+      }
+      if (qty > 0) {
+        const existing = this.bids.get(price) || 0;
+        this.bids.set(price, existing + qty);
+      }
     } else {
-      const existing = this.asks.get(price) || 0;
-      this.asks.set(price, existing + qty);
+      const bestBid = this.getBestBid();
+      if (bestBid > 0 && price <= bestBid && this.bids.has(bestBid)) {
+        // Cross against best bid
+        const restingBidQty = this.bids.get(bestBid) || 0;
+        const fillQty = Math.min(qty, restingBidQty);
+        if (restingBidQty <= fillQty) this.bids.delete(bestBid);
+        else this.bids.set(bestBid, restingBidQty - fillQty);
+
+        qty -= fillQty;
+        this.lastPrice = bestBid;
+        this.recentTrades = [
+          {
+            id: `tr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            price: bestBid,
+            quantity: fillQty,
+            side: 'sell',
+            timestamp: Date.now(),
+            latencyNs: 140,
+            poolUsed: 15,
+            poolCap: 100000,
+            poolAllocNs: 2.3,
+          },
+          ...this.recentTrades.slice(0, 49),
+        ];
+        this.notifyTradeListeners(this.recentTrades[0]);
+      }
+      if (qty > 0) {
+        const existing = this.asks.get(price) || 0;
+        this.asks.set(price, existing + qty);
+      }
     }
 
     this.notifyBookListeners();
 
     return {
       success: true,
-      message: `[Simulated] Order accepted: ${order.side.toUpperCase()} ${qty} shares @ ₹${order.price.toFixed(2)}`,
+      message: `[Simulated] Order processed: ${order.side.toUpperCase()} ${order.quantity} shares @ ₹${order.price.toFixed(2)}`,
     };
   }
 

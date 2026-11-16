@@ -55,78 +55,93 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Engine, Tail Latency & Mempool Stats */}
-      <div className="hidden md:flex items-center space-x-3.5 bg-slate-800/80 px-3.5 py-1.5 rounded border border-slate-700/80 text-xs">
-        {/* Current Match */}
-        <div className="flex items-center space-x-1.5">
-          <span className="text-slate-400">Match:</span>
-          <span className="font-mono text-slate-200 font-medium">
-            {formatLatency(engineStats?.latencyNs)}
-          </span>
-        </div>
-
-        <span className="text-slate-600">|</span>
-
-        {/* Tail Latencies: p50 / p90 / p99 / p99.9 */}
-        <div className="flex items-center space-x-2.5">
-          <div className="flex items-center space-x-1" title="Median Latency (50th Percentile)">
-            <span className="text-slate-400 text-[11px]">p50:</span>
-            <span className="font-mono text-emerald-400 font-medium">
-              {formatLatency(engineStats?.p50Ns)}
+      {/* Engine, Tail Latency & Mempool Stats (Responsive 2-Row Layout) */}
+      <div className="flex flex-col justify-center bg-slate-800/80 px-3.5 py-1.5 rounded border border-slate-700/80 text-xs gap-1 min-w-fit">
+        {/* Row 1: Real-Time & Tail Latency Distribution */}
+        <div className="flex items-center flex-wrap gap-x-2.5 gap-y-0.5">
+          <div className="flex items-center space-x-1.5">
+            <span className="text-slate-400">Match:</span>
+            <span className="font-mono text-slate-200 font-medium">
+              {formatLatency(engineStats?.latencyNs)}
             </span>
           </div>
 
-          <div className="flex items-center space-x-1" title="90th Percentile Latency">
-            <span className="text-slate-400 text-[11px]">p90:</span>
-            <span className="font-mono text-slate-200">
-              {formatLatency(engineStats?.p90Ns)}
-            </span>
-          </div>
+          <span className="text-slate-600">|</span>
 
-          <div className="flex items-center space-x-1" title="99th Percentile Latency">
-            <span className="text-slate-400 text-[11px]">p99:</span>
-            <span className="font-mono text-sky-400 font-medium">
-              {formatLatency(engineStats?.p99Ns)}
-            </span>
-          </div>
-
-          <div className="flex items-center space-x-1" title="99.9th Percentile Tail Latency">
-            <span className="text-slate-400 text-[11px]">p99.9:</span>
-            <span className="font-mono text-amber-400 font-semibold">
-              {formatLatency(engineStats?.p999Ns)}
-            </span>
-          </div>
-        </div>
-
-        <span className="text-slate-600">|</span>
-
-        {/* Mempool Info */}
-        <div className="flex items-center space-x-1.5">
-          <span className="text-slate-400">Mempool:</span>
-          <span className="font-mono text-slate-200">
-            {engineStats?.poolUsed != null ? `${engineStats.poolUsed} / 100k` : '0 / 100k'}
-          </span>
-          <span className="text-slate-500 font-mono text-[11px]">(2.3 ns/alloc)</span>
-        </div>
-
-        {/* Cryptographic Merkle State Root */}
-        {engineStats?.merkleRoot && (
-          <>
-            <span className="text-slate-600">|</span>
-            <div
-              className="flex items-center space-x-1.5 cursor-help"
-              title={`Verifiable Merkle State Root (Batch #${engineStats.merkleBatch || 1})\nFull Hash: ${engineStats.merkleRoot}\nProven state transition integrity.`}
-            >
-              <span className="text-slate-400 text-[11px]">Root:</span>
-              <span className="font-mono text-purple-300 font-medium text-[11px]">
-                {engineStats.merkleRoot.length > 18
-                  ? `${engineStats.merkleRoot.substring(0, 8)}...${engineStats.merkleRoot.substring(engineStats.merkleRoot.length - 6)}`
-                  : engineStats.merkleRoot}
+          {/* Tail Latencies: p50 / p90 / p99 / p99.9 */}
+          <div className="flex items-center flex-wrap gap-x-2">
+            <div className="flex items-center space-x-1" title="Median Latency (50th Percentile)">
+              <span className="text-slate-400 text-[11px]">p50:</span>
+              <span className="font-mono text-emerald-400 font-medium">
+                {formatLatency(engineStats?.p50Ns)}
               </span>
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-400" />
             </div>
-          </>
-        )}
+
+            <div className="flex items-center space-x-1" title="90th Percentile Latency">
+              <span className="text-slate-400 text-[11px]">p90:</span>
+              <span className="font-mono text-slate-200">
+                {formatLatency(engineStats?.p90Ns)}
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-1" title="99th Percentile Latency">
+              <span className="text-slate-400 text-[11px]">p99:</span>
+              <span className="font-mono text-sky-400 font-medium">
+                {formatLatency(engineStats?.p99Ns)}
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-1" title="99.9th Percentile Tail Latency">
+              <span className="text-slate-400 text-[11px]">p99.9:</span>
+              <span className="font-mono text-amber-400 font-semibold">
+                {formatLatency(engineStats?.p999Ns)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Mempool Allocation & Verifiable Merkle State Root */}
+        <div className="flex items-center flex-wrap gap-x-2.5 gap-y-0.5 text-[11px] text-slate-400 pt-0.5 border-t border-slate-700/50">
+          {/* Mempool Info */}
+          <div className="flex items-center space-x-1.5">
+            <span>Mempool:</span>
+            <span className="font-mono text-slate-200 font-medium">
+              {engineStats?.poolUsed != null ? `${engineStats.poolUsed} / 100k` : '0 / 100k'}
+            </span>
+            <span className="text-slate-500 font-mono">(2.3 ns/alloc)</span>
+          </div>
+
+          <span className="text-slate-600">|</span>
+
+          {/* Cryptographic Merkle State Root */}
+          <div
+            className="flex items-center space-x-1.5 cursor-help"
+            title={
+              engineStats?.merkleRoot
+                ? `Verifiable Merkle State Root (Batch #${engineStats.merkleBatch || 1})\nFull Hash: ${engineStats.merkleRoot}\nProven state transition integrity.`
+                : 'State Verifier: Standby (Hashing ring buffer)'
+            }
+          >
+            <span>State Root:</span>
+            {engineStats?.merkleRoot ? (
+              <>
+                <span className="font-mono text-purple-300 font-medium">
+                  {engineStats.merkleRoot.length > 18
+                    ? `${engineStats.merkleRoot.substring(0, 8)}...${engineStats.merkleRoot.substring(engineStats.merkleRoot.length - 6)}`
+                    : engineStats.merkleRoot}
+                </span>
+                {engineStats.merkleBatch ? (
+                  <span className="text-slate-500 font-mono text-[10px]">
+                    #{engineStats.merkleBatch}
+                  </span>
+                ) : null}
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-400" />
+              </>
+            ) : (
+              <span className="font-mono text-slate-500">Standby</span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Backend Status */}

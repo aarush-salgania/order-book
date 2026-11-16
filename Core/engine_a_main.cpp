@@ -11,6 +11,7 @@
 #include <string>
 
 #include "order_book_core.cpp"
+#include "shm_ring_buffer.hpp"
 
 namespace {
 
@@ -51,6 +52,9 @@ int main() {
     }
 
     OrderId next_id = 1;
+    uint64_t seq_id = 1;
+    uint64_t trade_seq = 1;
+    ob::ShmProducer ring_producer;
     std::string line;
     std::cerr << "[engine] ready" << std::endl;
 
@@ -149,6 +153,32 @@ int main() {
             const double order_price = static_cast<double>(tick) / TICKS_PER_RUPEE;
 
             if (res.filled > 0) {
+                // 1. Record Trade Execution Event into Shared Memory Ring Buffer
+                ExecutionEvent ev{};
+                ev.ingress_id = seq_id++;
+                ev.trade_id = trade_seq++;
+                ev.maker_order_id = 0;
+                ev.taker_order_id = order.id;
+                ev.price = tick;
+                ev.quantity = res.filled;
+                ev.side = (side == 'B' ? 0 : 1);
+                ev.event_type = 2; // 2 = Trade
+                ring_producer.push(ev);
+
+                // If partially filled, remainder rests on book
+                if (res.remaining > 0) {
+                    ExecutionEvent rest_ev{};
+                    rest_ev.ingress_id = seq_id++;
+                    rest_ev.trade_id = 0;
+                    rest_ev.maker_order_id = order.id;
+                    rest_ev.taker_order_id = 0;
+                    rest_ev.price = tick;
+                    rest_ev.quantity = res.remaining;
+                    rest_ev.side = (side == 'B' ? 0 : 1);
+                    rest_ev.event_type = 0; // 0 = Add/Rest
+                    ring_producer.push(rest_ev);
+                }
+
                 const double trade_price = static_cast<double>(best_opp) / TICKS_PER_RUPEE;
                 std::cout << "TRADE_EXECUTED: {\"side\":\"" << (side == 'B' ? "buy" : "sell")
                           << "\",\"price\":" << std::fixed << std::setprecision(2) << trade_price
@@ -161,6 +191,18 @@ int main() {
                           << ",\"pool_alloc_ns\":2.3"
                           << "}" << std::endl;
             } else {
+                // Record Resting Limit Order Event into Shared Memory Ring Buffer
+                ExecutionEvent ev{};
+                ev.ingress_id = seq_id++;
+                ev.trade_id = 0;
+                ev.maker_order_id = order.id;
+                ev.taker_order_id = 0;
+                ev.price = tick;
+                ev.quantity = res.remaining;
+                ev.side = (side == 'B' ? 0 : 1);
+                ev.event_type = 0; // 0 = Add/Rest
+                ring_producer.push(ev);
+
                 std::cout << "ORDER_ACCEPTED: {\"side\":\"" << (side == 'B' ? "buy" : "sell")
                           << "\",\"price\":" << std::fixed << std::setprecision(2) << order_price
                           << ",\"quantity\":" << res.remaining

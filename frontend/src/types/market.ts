@@ -47,6 +47,8 @@ export interface EngineStats {
   p99Ns?: number;
   p999Ns?: number;
   opsCount?: number;
+  merkleRoot?: string;
+  merkleBatch?: number;
 }
 
 export interface ManualOrderPayload {

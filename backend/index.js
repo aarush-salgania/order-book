@@ -4,9 +4,11 @@ import cors from "cors";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync } from "node:fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const binaryPath = path.join(__dirname, "order_book.exe");
+const loggerBinaryPath = path.join(__dirname, "merkle_logger.exe");
 
 const clients = new Set();
 const app = express();
@@ -14,11 +16,39 @@ const PORT = 4000;
 const WS_PORT = 4001;
 const wss = new WebSocketServer({ port: WS_PORT });
 
+// 1. Core Matching Engine Process
 const engineProcess = spawn(binaryPath, []);
 
 engineProcess.on("error", (err) => {
     console.error(`[C++ Engine Process Error]: ${err.message}`);
 });
+
+// 2. Standalone Asynchronous Verifiable Merkle Logger Child Process
+let loggerProcess = null;
+if (existsSync(loggerBinaryPath)) {
+    loggerProcess = spawn(loggerBinaryPath, []);
+    loggerProcess.on("error", (err) => {
+        console.error(`[Merkle Logger Error]: ${err.message}`);
+    });
+
+    loggerProcess.stdout.on("data", (data) => {
+        const lines = data.toString().split(/\r?\n/).filter((l) => l.trim().length > 0);
+        for (const line of lines) {
+            console.log(`[Merkle Logger]: ${line}`);
+            broadcastToClients(line);
+        }
+    });
+
+    loggerProcess.stderr.on("data", (data) => {
+        console.log(`[Merkle Logger Info]: ${data.toString().trim()}`);
+    });
+
+    loggerProcess.on("close", (code) => {
+        console.log(`[Merkle Logger] exited with code ${code}`);
+    });
+} else {
+    console.warn(`[Merkle Logger]: Binary not found at ${loggerBinaryPath}. Run start.bat to compile it.`);
+}
 
 let logCounter = 0;
 
@@ -130,6 +160,9 @@ function sendToEngine(order) {
 process.on("SIGINT", () => {
     if (engineProcess && !engineProcess.killed) {
         engineProcess.kill();
+    }
+    if (loggerProcess && !loggerProcess.killed) {
+        loggerProcess.kill();
     }
     process.exit();
 });

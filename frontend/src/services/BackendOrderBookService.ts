@@ -176,7 +176,24 @@ export class BackendOrderBookService implements IOrderBookService {
     const trimmed = rawData.trim();
     if (!trimmed) return;
 
-    // 0. BOOK_SNAPSHOT: {"bids":[{"price":...,"quantity":...}],"asks":[...]}
+    // 0. MERKLE_ROOT: {"batch":1,"count":64,"root":"0x...","timestamp":...}
+    if (trimmed.startsWith('MERKLE_ROOT:')) {
+      try {
+        const payload = trimmed.substring('MERKLE_ROOT:'.length).trim();
+        const obj = JSON.parse(payload);
+        if (obj.root) {
+          this.notifyStatsListeners({
+            merkleRoot: String(obj.root),
+            merkleBatch: Number(obj.batch) || undefined,
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to parse MERKLE_ROOT:', e);
+      }
+      return;
+    }
+
+    // 1. BOOK_SNAPSHOT: {"bids":[{"price":...,"quantity":...}],"asks":[...]}
     if (trimmed.startsWith('BOOK_SNAPSHOT:')) {
       try {
         const payload = trimmed.substring('BOOK_SNAPSHOT:'.length).trim();
@@ -625,6 +642,8 @@ export class BackendOrderBookService implements IOrderBookService {
       p99Ns: 0,
       p999Ns: 0,
       opsCount: 0,
+      merkleRoot: undefined,
+      merkleBatch: 0,
     };
     this.notifyBookListeners();
     this.notifyStatsListeners(this.currentStats);

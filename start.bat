@@ -17,9 +17,9 @@ if %ERRORLEVEL% neq 0 (
         exit /b %ERRORLEVEL%
     )
 ) else (
-    cmake --build "%ROOT_DIR%build" --target order_book_engine --config Release
+    cmake --build "%ROOT_DIR%build" --target order_book_engine merkle_logger --config Release
     if %ERRORLEVEL% neq 0 (
-        echo [ERROR] Engine build failed.
+        echo [ERROR] Engine / Logger build failed.
         pause
         exit /b %ERRORLEVEL%
     )

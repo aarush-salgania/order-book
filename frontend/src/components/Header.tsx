@@ -108,6 +108,25 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
           <span className="text-slate-500 font-mono text-[11px]">(2.3 ns/alloc)</span>
         </div>
+
+        {/* Cryptographic Merkle State Root */}
+        {engineStats?.merkleRoot && (
+          <>
+            <span className="text-slate-600">|</span>
+            <div
+              className="flex items-center space-x-1.5 cursor-help"
+              title={`Verifiable Merkle State Root (Batch #${engineStats.merkleBatch || 1})\nFull Hash: ${engineStats.merkleRoot}\nProven state transition integrity.`}
+            >
+              <span className="text-slate-400 text-[11px]">Root:</span>
+              <span className="font-mono text-purple-300 font-medium text-[11px]">
+                {engineStats.merkleRoot.length > 18
+                  ? `${engineStats.merkleRoot.substring(0, 8)}...${engineStats.merkleRoot.substring(engineStats.merkleRoot.length - 6)}`
+                  : engineStats.merkleRoot}
+              </span>
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-400" />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Backend Status */}

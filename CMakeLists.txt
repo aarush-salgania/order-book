@@ -23,4 +23,13 @@ endif()
 set_target_properties(order_book_engine PROPERTIES
     OUTPUT_NAME order_book
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/backend)
+
+# Asynchronous Verifiable Merkle Logger Child Process
+add_executable(merkle_logger Core/merkle_logger_main.cpp)
+if (MINGW)
+    target_link_options(merkle_logger PRIVATE -static)
+endif()
+set_target_properties(merkle_logger PROPERTIES
+    OUTPUT_NAME merkle_logger
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/backend)
     

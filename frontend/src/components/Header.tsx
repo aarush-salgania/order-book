@@ -11,7 +11,7 @@ interface HeaderProps {
 }
 
 function formatLatency(ns?: number): string {
-  if (ns == null || ns === 0) return '142 ns';
+  if (ns == null || ns === 0) return '—';
   if (ns < 1000) return `${ns} ns`;
   if (ns < 1000000) return `${(ns / 1000).toFixed(1)} µs`;
   return `${(ns / 1000000).toFixed(2)} ms`;
@@ -55,15 +55,52 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Engine & Mempool Stats */}
-      <div className="hidden md:flex items-center space-x-4 bg-slate-800/80 px-3.5 py-1.5 rounded border border-slate-700/80 text-xs">
+      {/* Engine, Tail Latency & Mempool Stats */}
+      <div className="hidden md:flex items-center space-x-3.5 bg-slate-800/80 px-3.5 py-1.5 rounded border border-slate-700/80 text-xs">
+        {/* Current Match */}
         <div className="flex items-center space-x-1.5">
           <span className="text-slate-400">Match:</span>
           <span className="font-mono text-slate-200 font-medium">
             {formatLatency(engineStats?.latencyNs)}
           </span>
         </div>
+
         <span className="text-slate-600">|</span>
+
+        {/* Tail Latencies: p50 / p90 / p99 / p99.9 */}
+        <div className="flex items-center space-x-2.5">
+          <div className="flex items-center space-x-1" title="Median Latency (50th Percentile)">
+            <span className="text-slate-400 text-[11px]">p50:</span>
+            <span className="font-mono text-emerald-400 font-medium">
+              {formatLatency(engineStats?.p50Ns)}
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-1" title="90th Percentile Latency">
+            <span className="text-slate-400 text-[11px]">p90:</span>
+            <span className="font-mono text-slate-200">
+              {formatLatency(engineStats?.p90Ns)}
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-1" title="99th Percentile Latency">
+            <span className="text-slate-400 text-[11px]">p99:</span>
+            <span className="font-mono text-sky-400 font-medium">
+              {formatLatency(engineStats?.p99Ns)}
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-1" title="99.9th Percentile Tail Latency">
+            <span className="text-slate-400 text-[11px]">p99.9:</span>
+            <span className="font-mono text-amber-400 font-semibold">
+              {formatLatency(engineStats?.p999Ns)}
+            </span>
+          </div>
+        </div>
+
+        <span className="text-slate-600">|</span>
+
+        {/* Mempool Info */}
         <div className="flex items-center space-x-1.5">
           <span className="text-slate-400">Mempool:</span>
           <span className="font-mono text-slate-200">

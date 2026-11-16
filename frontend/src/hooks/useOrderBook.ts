@@ -49,7 +49,7 @@ export function useOrderBook(
   const [engineStats, setEngineStats] = useState<EngineStats>(() => {
     return activeService.getStats
       ? activeService.getStats()
-      : { latencyNs: 142, poolUsed: 0, poolCap: 100000, poolAllocNs: 2.3 };
+      : { latencyNs: 142, poolUsed: 0, poolCap: 100000, poolAllocNs: 2.3, p50Ns: 0, p90Ns: 0, p99Ns: 0, p999Ns: 0 };
   });
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(() => {
     return activeService.getStatus ? activeService.getStatus() : 'connected';

@@ -42,6 +42,11 @@ export interface EngineStats {
   poolUsed: number;
   poolCap: number;
   poolAllocNs: number;
+  p50Ns?: number;
+  p90Ns?: number;
+  p99Ns?: number;
+  p999Ns?: number;
+  opsCount?: number;
 }
 
 export interface ManualOrderPayload {

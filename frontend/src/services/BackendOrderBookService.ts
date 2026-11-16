@@ -58,7 +58,15 @@ export class BackendOrderBookService implements IOrderBookService {
     poolUsed: 0,
     poolCap: 100000,
     poolAllocNs: 2.3,
+    p50Ns: 0,
+    p90Ns: 0,
+    p99Ns: 0,
+    p999Ns: 0,
+    opsCount: 0,
   };
+
+  private latencyHistory: number[] = [];
+  private totalOpsCount = 0;
 
   private simInterval: ReturnType<typeof setInterval> | null = null;
   private readonly depthLevels = 18;
@@ -605,11 +613,18 @@ export class BackendOrderBookService implements IOrderBookService {
     this.recentTrades = [];
     this.lastPrice = 10520.0;
     this.volume24h = 0;
+    this.latencyHistory = [];
+    this.totalOpsCount = 0;
     this.currentStats = {
       latencyNs: 0,
       poolUsed: 0,
       poolCap: 100000,
       poolAllocNs: 2.3,
+      p50Ns: 0,
+      p90Ns: 0,
+      p99Ns: 0,
+      p999Ns: 0,
+      opsCount: 0,
     };
     this.notifyBookListeners();
     this.notifyStatsListeners(this.currentStats);
@@ -743,8 +758,43 @@ export class BackendOrderBookService implements IOrderBookService {
     return { ...this.currentStats };
   }
 
-  private notifyStatsListeners(stats: EngineStats): void {
-    this.currentStats = { ...stats };
+  private recordLatency(ns?: number): void {
+    if (ns == null || ns <= 0) return;
+    this.totalOpsCount++;
+    this.latencyHistory.push(ns);
+    if (this.latencyHistory.length > 2000) {
+      this.latencyHistory.shift();
+    }
+  }
+
+  private getPercentiles(): { p50: number; p90: number; p99: number; p999: number } {
+    if (this.latencyHistory.length === 0) {
+      return { p50: 0, p90: 0, p99: 0, p999: 0 };
+    }
+    const sorted = [...this.latencyHistory].sort((a, b) => a - b);
+    const n = sorted.length;
+    return {
+      p50: sorted[Math.floor(n * 0.50)] || 0,
+      p90: sorted[Math.floor(n * 0.90)] || sorted[n - 1] || 0,
+      p99: sorted[Math.floor(n * 0.99)] || sorted[n - 1] || 0,
+      p999: sorted[Math.floor(n * 0.999)] || sorted[n - 1] || 0,
+    };
+  }
+
+  private notifyStatsListeners(partial: Partial<EngineStats>): void {
+    if (partial.latencyNs && partial.latencyNs > 0) {
+      this.recordLatency(partial.latencyNs);
+    }
+    const p = this.getPercentiles();
+    this.currentStats = {
+      ...this.currentStats,
+      ...partial,
+      p50Ns: p.p50,
+      p90Ns: p.p90,
+      p99Ns: p.p99,
+      p999Ns: p.p999,
+      opsCount: this.totalOpsCount,
+    };
     this.statsListeners.forEach((l) => l(this.currentStats));
   }
 

@@ -53,7 +53,14 @@ export class MockDataService implements IOrderBookService {
     poolUsed: 18,
     poolCap: 100000,
     poolAllocNs: 2.3,
+    p50Ns: 142,
+    p90Ns: 185,
+    p99Ns: 240,
+    p999Ns: 310,
+    opsCount: 50,
   };
+
+  private latencyHistory: number[] = [135, 140, 142, 150, 155, 160, 175, 190, 240, 310];
 
   private intervalTimer: ReturnType<typeof setInterval> | null = null;
   private readonly depthLevels = 18;
@@ -426,11 +433,17 @@ export class MockDataService implements IOrderBookService {
     this.asks.clear();
     this.recentTrades = [];
     this.volume24h = 0;
+    this.latencyHistory = [];
     this.stats = {
       latencyNs: 0,
       poolUsed: 0,
       poolCap: 100000,
       poolAllocNs: 2.3,
+      p50Ns: 0,
+      p90Ns: 0,
+      p99Ns: 0,
+      p999Ns: 0,
+      opsCount: 0,
     };
     this.notifyBookListeners();
     this.notifyStatsListeners(this.stats);
@@ -466,8 +479,21 @@ export class MockDataService implements IOrderBookService {
     return { ...this.stats };
   }
 
-  private notifyStatsListeners(stats: EngineStats): void {
-    this.stats = { ...stats };
+  private notifyStatsListeners(partial: Partial<EngineStats>): void {
+    if (partial.latencyNs && partial.latencyNs > 0) {
+      this.latencyHistory.push(partial.latencyNs);
+      if (this.latencyHistory.length > 1000) this.latencyHistory.shift();
+    }
+    const sorted = [...this.latencyHistory].sort((a, b) => a - b);
+    const n = sorted.length;
+    this.stats = {
+      ...this.stats,
+      ...partial,
+      p50Ns: sorted[Math.floor(n * 0.50)] || this.stats.p50Ns,
+      p90Ns: sorted[Math.floor(n * 0.90)] || this.stats.p90Ns,
+      p99Ns: sorted[Math.floor(n * 0.99)] || this.stats.p99Ns,
+      p999Ns: sorted[Math.floor(n * 0.999)] || this.stats.p999Ns,
+    };
     this.statsListeners.forEach((l) => l(this.stats));
   }
 

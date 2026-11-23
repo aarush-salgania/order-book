@@ -175,6 +175,9 @@ ring_buffer.hpp, merkle.hpp, merklebench.cpp   standalone Merkle pipeline
 - Windows only: the backend hardcodes `order_book.exe`.
 - The engine has no cancel or market-order path (`BookCore::cancel` exists but is never called), and the UI's `type` field is ignored.
 - Restarting the backend restarts the engine and clears its book, while the UI ladder is not reset.
+- The initial order book ladder and the first 16 trades in the UI are generated client-side
+  (`seedInitialTrades`, `initializeOrderBook` in `BackendOrderBookService.ts`). They are not
+  engine data. Only orders you submit reach the C++ engine, and only its fills are real trades.
 
 ## Contributing and License
 
